@@ -90,10 +90,6 @@
     "skipLibCheck": true /* Skip type checking all .d.ts files. */
   },
   "include": [
-    "source/**/*",
-    "readme.md",
-    "package.json",
-    "package-lock.json",
-    "license.md"
+    "source/**/*"
   ]
 }
