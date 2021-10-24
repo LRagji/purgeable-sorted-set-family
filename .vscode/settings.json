@@ -1,0 +1,6 @@
+{
+    "workbench.iconTheme": "vs-minimal",
+    "editor.formatOnSave": true,
+    "explorer.compactFolders": false,
+    "editor.minimap.enabled": false
+}
