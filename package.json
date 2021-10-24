@@ -3,11 +3,14 @@
   "version": "0.0.1",
   "description": "SortedSet data structure with purge functionality.",
   "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "scripts": {
     "clean-build": "run-script-os",
+    "copy-files": "run-script-os",
+    "copy-files:macos": "cp ./readme.md ./package.json ./package-lock.json ./license.md ./dist/",
     "clean-build:macos": "rm -rf ./dist/",
-    "test": "nyc --reporter=html --reporter=text env TS_NODE_COMPILER_OPTIONS='{\"module\": \"commonjs\" }' mocha -r ts-node/register ./tests/**/*.ts",
-    "build": "npm run clean-build && tsc"
+    "test": "npm run build && nyc --reporter=html --reporter=text mocha -r ts-node/register ./tests/**/*.ts",
+    "build": "npm run clean-build && tsc && npm run copy-files"
   },
   "repository": {
     "type": "git",

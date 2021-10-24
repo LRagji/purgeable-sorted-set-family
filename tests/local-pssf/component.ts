@@ -1,6 +1,5 @@
 import * as assert from 'assert';
-import { IPurgeableSortedSetFamily, ISortedStringData } from '../../source/i-purgeable-sorted-set';
-import { LocalPSSF } from "../../source/local-pssf";
+import { IPurgeableSortedSetFamily, ISortedStringData, LocalPSSF } from '../../source/index';
 
 describe('"LocalPSSF" Set/Query component tests', () => {
 
