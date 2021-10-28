@@ -1,8 +1,8 @@
 import * as assert from 'assert';
-import { IPurgeableSortedSetFamily, ISortedStringData, LocalPSSF } from '../../source/index';
+import { IPurgeableSortedSetFamily, ISortedStringData, LocalPSSF, RemotePSSF } from '../source/index';
 const purgeName = "Pur";
 
-describe('"LocalPSSF" Set/Query component tests', () => {
+describe('"IPurgeableSortedSetFamily" Set/Query component tests', () => {
 
     it('should be able to upsert and get string data', async () => {
         //Setup
@@ -268,7 +268,7 @@ describe('"LocalPSSF" Set/Query component tests', () => {
     });
 });
 
-describe('"RamSortedSet" Purge component tests', () => {
+describe('"IPurgeableSortedSetFamily" Purge component tests', () => {
 
     it('should not purge data when nothing is matching', async () => {
         //Setup
@@ -710,5 +710,13 @@ describe('"RamSortedSet" Purge component tests', () => {
 });
 
 function testTarget(): IPurgeableSortedSetFamily<ISortedStringData> {
-    return new LocalPSSF(purgeName);
+    switch (process.env.MODE) {
+        case '1':
+            console.log("Testing Remote");
+            return new LocalPSSF(purgeName);
+        default:
+            console.log("Testing Local");
+            return new LocalPSSF(purgeName);
+    }
+
 }
