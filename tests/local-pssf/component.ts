@@ -1,5 +1,6 @@
 import * as assert from 'assert';
 import { IPurgeableSortedSetFamily, ISortedStringData, LocalPSSF } from '../../source/index';
+const purgeName = "Pur";
 
 describe('"LocalPSSF" Set/Query component tests', () => {
 
@@ -21,6 +22,27 @@ describe('"LocalPSSF" Set/Query component tests', () => {
         assert.deepStrictEqual(rangeResult.error, undefined);
         const readData = data.map(e => { e.bytes = 0n; return e });
         assert.deepStrictEqual(rangeResult.data, readData);
+    });
+
+    it('should not let setname end with purge key', async () => {
+        //Setup
+        const target = testTarget();
+        const data = new Array<ISortedStringData>();
+        data.push({ score: 1n, payload: "A", setName: "Laukik" + purgeName, bytes: 1n });
+        data.push({ score: 2n, payload: "B", setName: "Laukik", bytes: 1n });
+        data.push({ score: 3n, payload: "C", setName: "Laukik", bytes: 1n });
+
+        //Test
+        const setResult = await target.upsert(data);
+        const rangeResult = await target.scoreRangeQuery("Laukik", 1n, 3n);
+
+        //Verify
+        assert.deepStrictEqual(setResult.failed.length, 1);
+        assert.deepStrictEqual(setResult.failed[0].error?.message, `Setname "LaukikPur" cannot end with system reserved key "Pur".`);
+        assert.deepStrictEqual(setResult.failed[0].data, data[0]);
+        assert.deepStrictEqual(setResult.succeeded, [data[1], data[2]].map(e => { e.bytes = 0n; return e; }));
+        assert.deepStrictEqual(rangeResult.error, undefined);
+        assert.deepStrictEqual(rangeResult.data, [data[1], data[2]].map(e => { e.bytes = 0n; return e; }));
     });
 
     it('should be able to upsert and get updated data', async () => {
@@ -264,7 +286,7 @@ describe('"RamSortedSet" Purge component tests', () => {
         assert.deepStrictEqual(setResult.failed.length, 0);
         assert.deepStrictEqual(setResult.succeeded, data);
         assert.deepStrictEqual(purgeResult.error, undefined);
-        assert.deepStrictEqual(purgeResult.data.length, 0);
+        assert.deepStrictEqual(purgeResult.data.size, 0);
     });
 
     it('should purge data when bytes have exceeded or equal', async () => {
@@ -284,7 +306,10 @@ describe('"RamSortedSet" Purge component tests', () => {
         assert.deepStrictEqual(setResult.failed.length, 0);
         assert.deepStrictEqual(setResult.succeeded, data);
         assert.deepStrictEqual(purgeResult.error, undefined);
-        assert.deepStrictEqual(purgeResult.data, [data[0], data[1], data[2]].map(e => { e.bytes = 0n; return e; }));
+        assert.deepStrictEqual(Array.from(purgeResult.data.keys()).length, 1);
+        const token = Array.from(purgeResult.data.keys())[0];
+        assert.deepStrictEqual(token, "Laukik" + purgeName);
+        assert.deepStrictEqual(purgeResult.data.get(token), [data[0], data[1], data[2]].map(e => { e.bytes = 0n; return e; }));
     });
 
     it('should not purge data when bytes have not exceeded', async () => {
@@ -303,7 +328,7 @@ describe('"RamSortedSet" Purge component tests', () => {
         assert.deepStrictEqual(setResult.failed.length, 0);
         assert.deepStrictEqual(setResult.succeeded, data);
         assert.deepStrictEqual(purgeResult.error, undefined);
-        assert.deepStrictEqual(purgeResult.data.length, 0);
+        assert.deepStrictEqual(purgeResult.data.size, 0);
     });
 
     it('should purge data when count has exceeded or equal', async () => {
@@ -323,7 +348,10 @@ describe('"RamSortedSet" Purge component tests', () => {
         assert.deepStrictEqual(setResult.failed.length, 0);
         assert.deepStrictEqual(setResult.succeeded, data);
         assert.deepStrictEqual(purgeResult.error, undefined);
-        assert.deepStrictEqual(purgeResult.data, [data[0], data[1], data[2]].map(e => { e.bytes = 0n; return e; }));
+        assert.deepStrictEqual(Array.from(purgeResult.data.keys()).length, 1);
+        const token = Array.from(purgeResult.data.keys())[0];
+        assert.deepStrictEqual(token, "Laukik" + purgeName);
+        assert.deepStrictEqual(purgeResult.data.get(token), [data[0], data[1], data[2]].map(e => { e.bytes = 0n; return e; }));
     });
 
     it('should not purge data when count has not exceeded', async () => {
@@ -342,7 +370,7 @@ describe('"RamSortedSet" Purge component tests', () => {
         assert.deepStrictEqual(setResult.failed.length, 0);
         assert.deepStrictEqual(setResult.succeeded, data);
         assert.deepStrictEqual(purgeResult.error, undefined);
-        assert.deepStrictEqual(purgeResult.data.length, 0);
+        assert.deepStrictEqual(purgeResult.data.size, 0);
     });
 
     it('should purge data when purge time has exceeded', async () => {
@@ -362,7 +390,10 @@ describe('"RamSortedSet" Purge component tests', () => {
         assert.deepStrictEqual(setResult.failed.length, 0);
         assert.deepStrictEqual(setResult.succeeded, data);
         assert.deepStrictEqual(purgeResult.error, undefined);
-        assert.deepStrictEqual(purgeResult.data, [data[0], data[1], data[2]].map(e => { e.bytes = 0n; return e; }));
+        assert.deepStrictEqual(Array.from(purgeResult.data.keys()).length, 1);
+        const token = Array.from(purgeResult.data.keys())[0];
+        assert.deepStrictEqual(token, "Laukik" + purgeName);
+        assert.deepStrictEqual(purgeResult.data.get(token), [data[0], data[1], data[2]].map(e => { e.bytes = 0n; return e; }));
     }).timeout(-1);
 
     it('should not purge data when timeout has not exceeded', async () => {
@@ -381,7 +412,7 @@ describe('"RamSortedSet" Purge component tests', () => {
         assert.deepStrictEqual(setResult.failed.length, 0);
         assert.deepStrictEqual(setResult.succeeded, data);
         assert.deepStrictEqual(purgeResult.error, undefined);
-        assert.deepStrictEqual(purgeResult.data.length, 0);
+        assert.deepStrictEqual(purgeResult.data.size, 0);
     });
 
     it('should not purge data when no condition is met.', async () => {
@@ -400,7 +431,7 @@ describe('"RamSortedSet" Purge component tests', () => {
         assert.deepStrictEqual(setResult.failed.length, 0);
         assert.deepStrictEqual(setResult.succeeded, data);
         assert.deepStrictEqual(purgeResult.error, undefined);
-        assert.deepStrictEqual(purgeResult.data.length, 0);
+        assert.deepStrictEqual(purgeResult.data.size, 0);
     });
 
     it('should purge data when from unfinished list first', async () => {
@@ -427,13 +458,19 @@ describe('"RamSortedSet" Purge component tests', () => {
         assert.deepStrictEqual(setResult.succeeded, data);
 
         assert.deepStrictEqual(timedoutPurgeResult.error, undefined);
-        assert.deepStrictEqual(timedoutPurgeResult.data, [data[0], data[1], data[2]].map(e => { e.bytes = 0n; return e; }));
+        assert.deepStrictEqual(Array.from(timedoutPurgeResult.data.keys()).length, 1);
+        const token1 = Array.from(timedoutPurgeResult.data.keys())[0];
+        assert.deepStrictEqual(token1, "Laukik" + purgeName);
+        assert.deepStrictEqual(timedoutPurgeResult.data.get(token1), [data[0], data[1], data[2]].map(e => { e.bytes = 0n; return e; }));
 
         assert.deepStrictEqual(freshSetResult.failed.length, 0);
         assert.deepStrictEqual(freshSetResult.succeeded, freshData);
 
         assert.deepStrictEqual(purgeResult.error, undefined);
-        assert.deepStrictEqual(timedoutPurgeResult.data, [data[0], data[1], data[2]].map(e => { e.bytes = 0n; return e; }));
+        assert.deepStrictEqual(Array.from(purgeResult.data.keys()).length, 1);
+        const token2 = Array.from(purgeResult.data.keys())[0];
+        assert.deepStrictEqual(token2, "Laukik" + purgeName + purgeName);
+        assert.deepStrictEqual(purgeResult.data.get(token2), [data[0], data[1], data[2]].map(e => { e.bytes = 0n; return e; }));
 
     }).timeout(-1);
 
@@ -453,7 +490,7 @@ describe('"RamSortedSet" Purge component tests', () => {
         const setResult = await target.upsert(data);
         const timedoutPurgeResult = await target.purgeBegin(null, 1, null);
         await new Promise((acc, rej) => setTimeout(acc, 1500));//Kill time
-        const purgeFinishedResult = await target.purgeEnd(["Laukik"]);
+        const purgeFinishedResult = await target.purgeEnd(["Laukik" + purgeName]);
         const freshSetResult = await target.upsert(freshData);
         const purgeResult = await target.purgeBegin(null, 100, null, 1);
 
@@ -462,16 +499,19 @@ describe('"RamSortedSet" Purge component tests', () => {
         assert.deepStrictEqual(setResult.succeeded, data);
 
         assert.deepStrictEqual(timedoutPurgeResult.error, undefined);
-        assert.deepStrictEqual(timedoutPurgeResult.data, [data[0], data[1], data[2]].map(e => { e.bytes = 0n; return e; }));
+        assert.deepStrictEqual(Array.from(timedoutPurgeResult.data.keys()).length, 1);
+        const token1 = Array.from(timedoutPurgeResult.data.keys())[0];
+        assert.deepStrictEqual(token1, "Laukik" + purgeName);
+        assert.deepStrictEqual(timedoutPurgeResult.data.get(token1), [data[0], data[1], data[2]].map(e => { e.bytes = 0n; return e; }));
 
-        assert.deepStrictEqual(purgeFinishedResult.succeeded, ["Laukik"]);
+        assert.deepStrictEqual(purgeFinishedResult.succeeded, [token1]);
         assert.deepStrictEqual(purgeFinishedResult.failed.length, 0);
 
         assert.deepStrictEqual(freshSetResult.failed.length, 0);
         assert.deepStrictEqual(freshSetResult.succeeded, freshData);
 
         assert.deepStrictEqual(purgeResult.error, undefined);
-        assert.deepStrictEqual(purgeResult.data.length, 0);
+        assert.deepStrictEqual(purgeResult.data.size, 0);
 
     }).timeout(-1);
 
@@ -485,10 +525,190 @@ describe('"RamSortedSet" Purge component tests', () => {
         //Verify
         assert.deepStrictEqual(purgeFinishResult.succeeded.length, 0);
         assert.deepStrictEqual(purgeFinishResult.failed.length, 1);
-        assert.deepStrictEqual(purgeFinishResult.failed[0].error?.message, 'Sorted set with "ABC" name doesnot exists.');
+        assert.deepStrictEqual(purgeFinishResult.failed[0].error?.message, 'Token "ABC" doesnot exists.');
     });
+
+    it('should read data when its purge has begun but not completed', async () => {
+        //Setup
+        const target = testTarget();
+        const data = new Array<ISortedStringData>();
+        data.push({ score: 1n, payload: "A", setName: "Laukik", bytes: 1n });
+        data.push({ score: 2n, payload: "B", setName: "Laukik", bytes: 1n });
+        data.push({ score: 3n, payload: "C", setName: "Laukik", bytes: 1n });
+        data.push({ score: 1n, payload: "A", setName: "small", bytes: 1n });
+
+        //Test
+        const setResult = await target.upsert(data);
+        const purgeResult = await target.purgeBegin(null, null, 3n);
+        const readData = await target.scoreRangeQuery("Laukik", 1n, 100n);
+
+        //Verify
+        assert.deepStrictEqual(setResult.failed.length, 0);
+        assert.deepStrictEqual(setResult.succeeded, data);
+        assert.deepStrictEqual(purgeResult.error, undefined);
+        assert.deepStrictEqual(Array.from(purgeResult.data.keys()).length, 1);
+        const token1 = Array.from(purgeResult.data.keys())[0];
+        assert.deepStrictEqual(token1, "Laukik" + purgeName);
+        assert.deepStrictEqual(purgeResult.data.get(token1), [data[0], data[1], data[2]].map(e => { e.bytes = 0n; return e; }));
+        assert.deepStrictEqual(readData.error, undefined);
+        assert.deepStrictEqual(readData.data, [data[0], data[1], data[2]].map(e => { e.bytes = 0n; return e; }));
+    });
+
+    it('should not be able to read data when its purge has completed', async () => {
+        //Setup
+        const target = testTarget();
+        const data = new Array<ISortedStringData>();
+        data.push({ score: 1n, payload: "A", setName: "Laukik", bytes: 1n });
+        data.push({ score: 2n, payload: "B", setName: "Laukik", bytes: 1n });
+        data.push({ score: 3n, payload: "C", setName: "Laukik", bytes: 1n });
+        data.push({ score: 1n, payload: "A", setName: "small", bytes: 1n });
+
+        //Test
+        const setResult = await target.upsert(data);
+        const purgeResult = await target.purgeBegin(null, null, 3n);
+        const purgeCompleted = await target.purgeEnd(["Laukik" + purgeName]);
+        const readData = await target.scoreRangeQuery("Laukik", 1n, 100n);
+
+        //Verify
+        assert.deepStrictEqual(setResult.failed.length, 0);
+        assert.deepStrictEqual(setResult.succeeded, data);
+        assert.deepStrictEqual(purgeResult.error, undefined);
+        assert.deepStrictEqual(Array.from(purgeResult.data.keys()).length, 1);
+        const token1 = Array.from(purgeResult.data.keys())[0];
+        assert.deepStrictEqual(token1, "Laukik" + purgeName);
+        assert.deepStrictEqual(purgeResult.data.get(token1), [data[0], data[1], data[2]].map(e => { e.bytes = 0n; return e; }));
+        assert.deepStrictEqual(purgeCompleted.failed.length, 0);
+        assert.deepStrictEqual(purgeCompleted.succeeded, [token1]);
+        assert.deepStrictEqual(readData.error, undefined);
+        assert.deepStrictEqual(readData.data, []);
+    });
+
+    it('should read correct data when data moves through multiple pending cycles', async () => {
+        //Setup
+        const target = testTarget();
+        const data = new Array<ISortedStringData>();
+        data.push({ score: 1n, payload: "A", setName: "Laukik", bytes: 1n });
+        data.push({ score: 2n, payload: "B", setName: "Laukik", bytes: 1n });
+        data.push({ score: 3n, payload: "C", setName: "Laukik", bytes: 1n });
+        const freshData = new Array<ISortedStringData>();
+        freshData.push({ score: 1n, payload: "D", setName: "Fresh", bytes: 1n });
+        freshData.push({ score: 2n, payload: "E", setName: "Fresh", bytes: 1n });
+        freshData.push({ score: 3n, payload: "F", setName: "Fresh", bytes: 1n });
+
+        //Test
+        const setResult = await target.upsert(data);
+        const firstPurgeResult = await target.purgeBegin(null, 1, null);
+        await new Promise((acc, rej) => setTimeout(acc, 1500));//Kill time
+        const freshSetResult = await target.upsert(freshData);
+        const secondPurgeResult = await target.purgeBegin(null, 100, null, 1);
+        const readResultFirstSet = await target.scoreRangeQuery("Laukik", 0n, 100n);
+        const readResultSecondSet = await target.scoreRangeQuery("Fresh", 0n, 100n);
+
+        //Verify
+        assert.deepStrictEqual(setResult.failed.length, 0);
+        assert.deepStrictEqual(setResult.succeeded, data);
+
+        assert.deepStrictEqual(firstPurgeResult.error, undefined);
+        assert.deepStrictEqual(Array.from(firstPurgeResult.data.keys()).length, 1);
+        const token1 = Array.from(firstPurgeResult.data.keys())[0];
+        assert.deepStrictEqual(token1, "Laukik" + purgeName);
+        assert.deepStrictEqual(firstPurgeResult.data.get(token1), [data[0], data[1], data[2]].map(e => { e.bytes = 0n; return e; }));
+
+        assert.deepStrictEqual(freshSetResult.failed.length, 0);
+        assert.deepStrictEqual(freshSetResult.succeeded, freshData);
+
+        assert.deepStrictEqual(secondPurgeResult.error, undefined);
+        assert.deepStrictEqual(Array.from(secondPurgeResult.data.keys()).length, 1);
+        const token2 = Array.from(secondPurgeResult.data.keys())[0];
+        assert.deepStrictEqual(token2, "Laukik" + purgeName + purgeName);
+        assert.deepStrictEqual(secondPurgeResult.data.get(token2), [data[0], data[1], data[2]].map(e => { e.bytes = 0n; return e; }));
+
+        assert.deepStrictEqual(readResultFirstSet.error, undefined);
+        assert.deepStrictEqual(readResultSecondSet.error, undefined);
+        assert.deepStrictEqual(readResultFirstSet.data, [data[0], data[1], data[2]].map(e => { e.bytes = 0n; return e; }));
+        assert.deepStrictEqual(readResultSecondSet.data, [freshData[0], freshData[1], freshData[2]].map(e => { e.bytes = 0n; return e; }));
+
+    }).timeout(-1);
+
+    it('should read updated data when its purge has begun but not completed', async () => {
+        //Setup
+        const target = testTarget();
+        const data = new Array<ISortedStringData>();
+        data.push({ score: 1n, payload: "A", setName: "Laukik", bytes: 1n });
+        data.push({ score: 2n, payload: "B", setName: "Laukik", bytes: 1n });
+        data.push({ score: 3n, payload: "C", setName: "Laukik", bytes: 1n });
+        data.push({ score: 1n, payload: "A", setName: "small", bytes: 1n });
+        const updateData = new Array<ISortedStringData>();
+        updateData.push({ score: 53n, payload: "A", setName: "Laukik", bytes: 1n });
+
+        //Test
+        const setResult = await target.upsert(data);
+        const purgeResult = await target.purgeBegin(null, null, 3n);
+        const updateResult = await target.upsert(updateData);
+        const readData = await target.scoreRangeQuery("Laukik", 1n, 100n);
+
+        //Verify
+        assert.deepStrictEqual(setResult.failed.length, 0);
+        assert.deepStrictEqual(setResult.succeeded, data);
+        assert.deepStrictEqual(purgeResult.error, undefined);
+        assert.deepStrictEqual(Array.from(purgeResult.data.keys()).length, 1);
+        const token1 = Array.from(purgeResult.data.keys())[0];
+        assert.deepStrictEqual(token1, "Laukik" + purgeName);
+        assert.deepStrictEqual(purgeResult.data.get(token1), [data[0], data[1], data[2]].map(e => { e.bytes = 0n; return e; }));
+        assert.deepStrictEqual(updateResult.failed.length, 0);
+        assert.deepStrictEqual(updateResult.succeeded, updateData);
+        assert.deepStrictEqual(readData.error, undefined);
+        assert.deepStrictEqual(readData.data, [data[1], data[2], updateData[0]].map(e => { e.bytes = 0n; return e; }));
+    });
+
+    it('multiple purge with update should read correct data', async () => {
+        //Setup
+        const target = testTarget();
+        const data = new Array<ISortedStringData>();
+        data.push({ score: 1n, payload: "A", setName: "Laukik", bytes: 1n });
+        data.push({ score: 2n, payload: "B", setName: "Laukik", bytes: 1n });
+        data.push({ score: 3n, payload: "C", setName: "Laukik", bytes: 1n });
+        const updateData = new Array<ISortedStringData>();
+        updateData.push({ score: 53n, payload: "A", setName: "Laukik", bytes: 1n });
+
+        //Test
+        const setResult = await target.upsert(data);
+        const purgeResult1 = await target.purgeBegin(null, null, 3n);
+        const updateResult = await target.upsert(updateData);
+        const purgeCompletedResult1 = await target.purgeEnd(["Laukik" + purgeName]);
+        const readData1 = await target.scoreRangeQuery("Laukik", 1n, 100n);
+        const purgeResult2 = await target.purgeBegin(null, null, 1n);
+        const purgeCompletedResult2 = await target.purgeEnd(["Laukik" + purgeName]);
+        const readData2 = await target.scoreRangeQuery("Laukik", 1n, 100n);
+
+        //Verify
+        assert.deepStrictEqual(setResult.failed.length, 0);
+        assert.deepStrictEqual(setResult.succeeded, data);
+        assert.deepStrictEqual(purgeResult1.error, undefined);
+        assert.deepStrictEqual(Array.from(purgeResult1.data.keys()).length, 1);
+        const token1 = Array.from(purgeResult1.data.keys())[0];
+        assert.deepStrictEqual(token1, "Laukik" + purgeName);
+        assert.deepStrictEqual(purgeResult1.data.get(token1), [data[0], data[1], data[2]].map(e => { e.bytes = 0n; return e; }));
+        assert.deepStrictEqual(updateResult.failed.length, 0);
+        assert.deepStrictEqual(updateResult.succeeded, updateData);
+        assert.deepStrictEqual(purgeCompletedResult1.failed.length, 0);
+        assert.deepStrictEqual(purgeCompletedResult1.succeeded, [token1]);
+        assert.deepStrictEqual(readData1.error, undefined);
+        assert.deepStrictEqual(readData1.data, [updateData[0]].map(e => { e.bytes = 0n; return e; }));
+
+        assert.deepStrictEqual(purgeResult2.error, undefined);
+        assert.deepStrictEqual(Array.from(purgeResult2.data.keys()).length, 1);
+        const token2 = Array.from(purgeResult2.data.keys())[0];
+        assert.deepStrictEqual(token2, token1);
+        assert.deepStrictEqual(purgeResult2.data.get(token2), [updateData[0]].map(e => { e.bytes = 0n; return e; }));
+        assert.deepStrictEqual(purgeCompletedResult2.failed.length, 0);
+        assert.deepStrictEqual(purgeCompletedResult2.succeeded, [token2]);
+        assert.deepStrictEqual(readData2.error, undefined);
+        assert.deepStrictEqual(readData2.data, []);
+    });
+
 });
 
 function testTarget(): IPurgeableSortedSetFamily<ISortedStringData> {
-    return new LocalPSSF();
+    return new LocalPSSF(purgeName);
 }

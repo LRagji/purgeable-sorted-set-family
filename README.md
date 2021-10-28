@@ -4,7 +4,7 @@ A data structure with capabilities of "sorted-set", with additional functionalit
 Few definations before we jump in:
 1. `set` : A distinct collection of records, strings, number etc.
 2. `sorted-set` or `ordered-set`: A set which is sorted according to a score provided with each element of the set. (set is still distinct on element content, not on score.)
-3. `sorted-set family`: A collection of sorted sets.
+3. `family`: A collection of sets.
 
 This library provides 2 implmentation of the data structure, both expose common [interface](source/i-purgeable-sorted-set.ts) documented below.
 1. [Local-PSSF](source/local-pssf.ts) Used when the applications is not horizontally scalled acorss machines and its ok to have state in the process.

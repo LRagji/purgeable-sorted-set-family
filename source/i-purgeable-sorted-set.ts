@@ -14,7 +14,7 @@ export interface IPurgeableSortedSetFamily<T extends ISortedStringData> {
 
     scoreRangeQuery(setName: string, scoreStart: bigint, scoreEnd: bigint): Promise<IError<T[]>>;
 
-    purgeBegin(lastUpsertElapsedTimeInSeconds: number | null, maximumCountThreshold: number | null, maximumBytesThreshold: bigint | null, pendingSortedSetsTimeoutInSeconds?: number, maxSortedSetsToRetrive?: number): Promise<IError<T[]>>;
+    purgeBegin(lastUpsertElapsedTimeInSeconds: number | null, maximumCountThreshold: number | null, maximumBytesThreshold: bigint | null, pendingSortedSetsTimeoutInSeconds?: number, maxSortedSetsToRetrive?: number): Promise<IError<Map<string, T[]>>>;
 
-    purgeEnd(setNames: string[]): Promise<IBulkResponse<string[], IError<string>[]>>
+    purgeEnd(tokens: string[]): Promise<IBulkResponse<string[], IError<string>[]>>
 }

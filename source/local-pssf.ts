@@ -13,17 +13,27 @@ export class LocalPSSF implements IPurgeableSortedSetFamily<ISortedStringData> {
     private metaBytes = new Array<{ bytes: bigint, name: string }>();
     private metaCount = new Array<{ count: number, name: string }>();
     private metaLastSetTime = new Array<{ setTime: number, name: string }>();
-    private pendingSets = new Array<{ name: string, data: ISortedStringData[], time: number }>();
+    private pendingSets = new Array<{ token: string, time: number }>();
+    private setnameToToken = new Map<string, Array<string>>();
+    private tokenToSetname = new Map<string, string>();
     private metaByteCompareFunction = (lhs: { bytes: bigint; name: string; }, rhs: { bytes: bigint; name: string; }) => <1 | 0 | -1>Math.min(Math.max(parseInt((lhs.bytes - rhs.bytes).toString()), -1), 1);
     private metaCountCompareFunction = (lhs: { count: number; name: string; }, rhs: { count: number; name: string; }) => <1 | 0 | -1>Math.min(Math.max(lhs.count - rhs.count, -1), 1)
     private metaTimeCompareFunction = (lhs: { setTime: number; name: string; }, rhs: { setTime: number; name: string; }) => <1 | 0 | -1>Math.min(Math.max(lhs.setTime - rhs.setTime, -1), 1);
-    private pendingSetsCompareFunctions = (lhs: { name: string, data: ISortedStringData[], time: number }, rhs: { name: string, data: ISortedStringData[], time: number }) => <1 | 0 | -1>Math.min(Math.max(lhs.time - rhs.time, -1), 1);
+    private pendingSetsCompareFunctions = (lhs: { token: string, time: number }, rhs: { token: string, time: number }) => <1 | 0 | -1>Math.min(Math.max(lhs.time - rhs.time, -1), 1);
+    private purgeKeyAppend: string;
+
+    constructor(purgeKeyAppend = "purged") {
+        this.purgeKeyAppend = purgeKeyAppend;
+    }
 
     upsert(data: ISortedStringData[]): Promise<IBulkResponse<ISortedStringData[], IError<ISortedStringData>[]>> {
         const returnObject = { succeeded: new Array<ISortedStringData>(), failed: new Array<IError<ISortedStringData>>() };
         data.forEach(ss => {
             if (ss.score >= maximumScore || ss.score <= minimumScore) {
                 returnObject.failed.push({ data: ss, error: new Error(`Score(${ss.score}) for set named "${ss.setName}" is not within range of ${minimumScore} to ${maximumScore}.`) });
+            }
+            else if (ss.setName.endsWith(this.purgeKeyAppend) === true) {
+                returnObject.failed.push({ data: ss, error: new Error(`Setname "${ss.setName}" cannot end with system reserved key "${this.purgeKeyAppend}".`) });
             }
             else {
                 const z = this.sets.get(ss.setName) || new SortedSet();
@@ -71,23 +81,30 @@ export class LocalPSSF implements IPurgeableSortedSetFamily<ISortedStringData> {
             returnObject.error = new Error(`Invalid range start(${scoreStart}) cannot be greator than end(${scoreEnd}).`)
         }
         else {
-            const z = this.sets.get(setName) || new SortedSet();
-            const results = z.rangeByScore(scoreStart, scoreEnd, { withScores: true });
+            const setNames = this.setnameToToken.get(setName) || [];
+            setNames.push(setName);
+            const unionSet = setNames.reduce((acc, nameOrToken) => {
+                const z = this.sets.get(nameOrToken) || new SortedSet();
+                const results = z.rangeByScore(scoreStart, scoreEnd, { withScores: true });
+                results.forEach((e: Array<string>) => acc.add(e[0], BigInt(e[1]), 10));
+                return acc;
+            }, new SortedSet());
+            const results = unionSet.rangeByScore(scoreStart, scoreEnd, { withScores: true });
             returnObject.data = results.map((e: Array<Array<any>>) => ({ score: e[1], bytes: 0n, setName: setName, payload: e[0] }));
         }
         return Promise.resolve(returnObject);
     }
 
-    purgeBegin(lastUpsertElapsedTimeInSeconds: number | null, maximumCountThreshold: number | null, maximumBytesThreshold: bigint | null, pendingSortedSetsTimeoutInSeconds = 3600, maxSortedSetsToRetrive = 10): Promise<IError<ISortedStringData[]>> {
-        const returnObject: IError<Array<ISortedStringData>> = { data: new Array<ISortedStringData>(), error: undefined };
+    purgeBegin(lastUpsertElapsedTimeInSeconds: number | null, maximumCountThreshold: number | null, maximumBytesThreshold: bigint | null, pendingSortedSetsTimeoutInSeconds = 3600, maxSortedSetsToRetrive = 10): Promise<IError<Map<string, ISortedStringData[]>>> {
+        const returnObject: IError<Map<string, Array<ISortedStringData>>> = { data: new Map<string, Array<ISortedStringData>>(), error: undefined };
 
         //Query Pending sortedsets
         const adjustedExpiryTime = Date.now() - (pendingSortedSetsTimeoutInSeconds * 1000);
         const pendingSets: Array<string> = [];
-        let pendingIndex = sortingHelper.lt(this.pendingSets, { time: adjustedExpiryTime, name: "", data: new Array<ISortedStringData>() }, this.pendingSetsCompareFunctions);
+        let pendingIndex = sortingHelper.lt(this.pendingSets, { time: adjustedExpiryTime, token: "" }, this.pendingSetsCompareFunctions);
         while (pendingIndex < this.pendingSets.length && pendingIndex > -1) {
-            const name = this.pendingSets[pendingIndex].name;
-            pendingSets.push(name);
+            const token = this.pendingSets[pendingIndex].token;
+            pendingSets.push(token);
             pendingIndex++;
         }
 
@@ -131,40 +148,87 @@ export class LocalPSSF implements IPurgeableSortedSetFamily<ISortedStringData> {
         //Dump partitions
         let counter = 0;
         while (counter < Math.min(partitionsToDump.length, maxSortedSetsToRetrive)) {
-            const name = partitionsToDump[counter];
-            const z = this.sets.get(name) || new SortedSet();
+            const nameOrToken = partitionsToDump[counter];
+            const setName = this.tokenToSetname.get(nameOrToken) || nameOrToken;
+            const z = this.sets.get(nameOrToken) || new SortedSet();
             const results = z.rangeByScore(null, null, { withScores: true });
-            const setData = results.map((e: Array<Array<any>>) => ({ score: e[1], bytes: 0n, setName: name, payload: e[0] }));
-            returnObject.data = returnObject.data.concat(setData);
-            const byteIndex = this.metaBytes.findIndex(e => e.name === name);
-            this.metaBytes.splice(byteIndex, 1);
-            const countIndex = this.metaCount.findIndex(e => e.name === name);
-            this.metaCount.splice(countIndex, 1);
-            const lastEditedIndex = this.metaLastSetTime.findIndex(e => e.name === name);
-            this.metaLastSetTime.splice(lastEditedIndex, 1);
-            const pendingIndex = this.pendingSets.findIndex(e => e.name === name);
-            if (pendingIndex !== -1) {
-                this.pendingSets.splice(pendingIndex, 1);
+            const purgedSS = new SortedSet();
+            const returnSetData = new Array<ISortedStringData>();
+            results.forEach((zElement: string[]) => {
+                returnSetData.push({ score: BigInt(zElement[1]), bytes: 0n, setName: setName, payload: zElement[0] });//
+                purgedSS.add(zElement[0], BigInt(zElement[1]));
+            });
+            const byteIndex = this.metaBytes.findIndex(e => e.name === setName);
+            const countIndex = this.metaCount.findIndex(e => e.name === setName);
+            const lastEditedIndex = this.metaLastSetTime.findIndex(e => e.name === setName);
+            if (byteIndex !== -1) {
+                this.metaBytes.splice(byteIndex, 1);
             }
-            sortingHelper.add(this.pendingSets, { name: name, data: setData, time: Date.now() }, this.pendingSetsCompareFunctions);
+            if (countIndex !== -1) {
+                this.metaCount.splice(countIndex, 1);
+            }
+            if (lastEditedIndex !== -1) {
+                this.metaLastSetTime.splice(lastEditedIndex, 1);
+            }
+
+            let token = this.constructToken(setName);
+            if (this.tokenToSetname.has(nameOrToken)) {//This means its token 
+                this.tokenToSetname.delete(nameOrToken);
+                const dataPurgeTokens = this.setnameToToken.get(setName) || [];
+                const tokenIndex = dataPurgeTokens.findIndex(e => e === nameOrToken)
+                const pendingIndex = this.pendingSets.findIndex(e => e.token === nameOrToken);
+                if (tokenIndex !== -1) {
+                    dataPurgeTokens.splice(tokenIndex, 1);
+                }
+                if (pendingIndex !== -1) {
+                    this.pendingSets.splice(pendingIndex, 1);
+                }
+                this.setnameToToken.set(setName, dataPurgeTokens);
+                token = this.constructToken(nameOrToken);
+            }
+            sortingHelper.add(this.pendingSets, { token: token, time: Date.now() }, this.pendingSetsCompareFunctions);
+
+            this.tokenToSetname.set(token, setName);
+
+            const dataPurgeTokens = this.setnameToToken.get(setName) || [];
+            dataPurgeTokens.push(token);
+            this.setnameToToken.set(setName, dataPurgeTokens);
+
+            this.sets.delete(nameOrToken);
+            this.sets.set(token, purgedSS);
+
+            returnObject.data.set(token, returnSetData);
             counter++;
         };
 
         return Promise.resolve(returnObject);
     }
 
-    purgeEnd(setNames: string[]): Promise<IBulkResponse<string[], IError<string>[]>> {
+    purgeEnd(tokens: string[]): Promise<IBulkResponse<string[], IError<string>[]>> {
         const returnObject = { succeeded: new Array<string>(), failed: new Array<IError<string>>() };
-        setNames.forEach(name => {
-            const pendingIndex = this.pendingSets.findIndex(e => e.name === name);
+        tokens.forEach(token => {
+            const pendingIndex = this.pendingSets.findIndex(e => e.token === token);
             if (pendingIndex !== -1) {
+                const setName = this.tokenToSetname.get(token) || "";
+                const dataPurgeTokens = this.setnameToToken.get(setName) || [];
+                const tokenIndex = dataPurgeTokens.findIndex(e => e === token)
+                if (tokenIndex !== -1) {
+                    dataPurgeTokens.splice(tokenIndex, 1);
+                }
+                this.setnameToToken.set(setName, dataPurgeTokens);
+                this.tokenToSetname.delete(token);
                 this.pendingSets.splice(pendingIndex, 1);
-                returnObject.succeeded.push(name);
+                this.sets.delete(token);
+                returnObject.succeeded.push(token);
             }
             else {
-                returnObject.failed.push({ data: name, error: new Error(`Sorted set with "${name}" name doesnot exists.`) });
+                returnObject.failed.push({ data: token, error: new Error(`Token "${token}" doesnot exists.`) });
             }
         });
         return Promise.resolve(returnObject);
+    }
+
+    constructToken(sortedSetName: string): string {
+        return `${sortedSetName}${this.purgeKeyAppend}`;
     }
 }
