@@ -8,10 +8,12 @@
     "clean-build": "run-script-os",
     "copy-files": "run-script-os",
     "copy-files:macos": "cp ./readme.md ./package.json ./package-lock.json ./license.md ./dist/",
+    "copy-files:windows": "for %I in (.\\readme.md .\\package.json .\\package-lock.json .\\license.md) do copy %I .\\dist\\",
     "clean-build:macos": "rm -rf ./dist/",
+    "clean-build:windows": "rmdir /s /q .\\dist\\",
     "test-run": "nyc --reporter=html --reporter=text mocha -r ts-node/register ./tests/**/*.ts",
     "test": "npm run build && npm run redisstart && npm run test-run",
-    "build": "npm run clean-build && tsc && npm run copy-files",
+    "build": "(npm run clean-build || node -v) && tsc && npm run copy-files",
     "redisstop": "docker stop TestCentralStore",
     "redisstart": "(npm run redisstop || docker -v )&& docker run --name TestCentralStore -p 6379:6379 -itd --rm redis:latest"
   },

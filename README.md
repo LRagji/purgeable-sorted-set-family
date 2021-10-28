@@ -25,13 +25,15 @@ This library provides 2 implmentation of the data structure, both expose common 
 ## Current Version:
 W.I.P(Not released yet)
 
-## Pre-requisite
-1. When using horizontal scalling it is very important to synchronise time between shards via NTP.
-
 ## License
 This project is contrubution to public domain and completely free for use, view [LICENSE.md](/license.md) file for details.
 
+## Pre-requisite
+1. When using horizontal scalling it is very important to synchronise time between shards via NTP.
+2. [FOR BUILD ONLY] For windows only needs node gyp with [Visual Studio Build Tools](https://github.com/nodejs/node-gyp) with [Python](https://www.python.org/downloads/)
+3. [FOR TEST/BUILD ONLY] Docker with local redis image.
+
 ## Local Build
 1. `npm install`
-2. `npm test` Docker with local redis image is must
+2. `npm test`
 3. Look into "./dist" folder for transpiled lib.
