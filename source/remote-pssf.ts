@@ -12,14 +12,16 @@ export class RemotePSSF implements IPurgeableSortedSetFamily<ISortedStringData> 
     private keyPrefix: string;
     private countKey: string;
     private bytesKey: string;
+    private purgeKeyAppend: string;
 
-    constructor(redisClientResolver: (operation: Operation) => Promise<IRedisClient>, keyPrefix: string,
+    constructor(redisClientResolver: (operation: Operation) => Promise<IRedisClient>, keyPrefix: string = "", purgeKeyAppend: string = "purged",
         activityKey: string = "Activity", countKey: string = "Stats", bytesKey: string = "Bytes") {
         this.redisClientResolver = redisClientResolver;
         this.keyPrefix = keyPrefix;
         this.activityKey = activityKey;
         this.countKey = countKey;
         this.bytesKey = bytesKey;
+        this.purgeKeyAppend = purgeKeyAppend;
     }
 
     async upsert(data: ISortedStringData[]): Promise<IBulkResponse<ISortedStringData[], IError<ISortedStringData>[]>> {
@@ -28,6 +30,9 @@ export class RemotePSSF implements IPurgeableSortedSetFamily<ISortedStringData> 
         data.forEach(ss => {
             if (ss.score >= maximumScore || ss.score <= minimumScore) {
                 returnObject.failed.push({ data: ss, error: new Error(`Score(${ss.score}) for set named "${ss.setName}" is not within range of ${minimumScore} to ${maximumScore}.`) });
+            }
+            else if (ss.setName.endsWith(this.purgeKeyAppend) === true) {
+                returnObject.failed.push({ data: ss, error: new Error(`Setname "${ss.setName}" cannot end with system reserved key "${this.purgeKeyAppend}".`) });
             }
             else {
                 const commands = zaddCommands.get(ss.setName) || new Array<string>();

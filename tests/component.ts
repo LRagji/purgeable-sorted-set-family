@@ -1,5 +1,6 @@
 import * as assert from 'assert';
 import { IPurgeableSortedSetFamily, ISortedStringData, LocalPSSF, RemotePSSF } from '../source/index';
+import { RedisClient } from './redis-client'
 const purgeName = "Pur";
 
 describe('"IPurgeableSortedSetFamily" Set/Query component tests', () => {
@@ -713,10 +714,10 @@ function testTarget(): IPurgeableSortedSetFamily<ISortedStringData> {
     switch (process.env.MODE) {
         case '1':
             console.log("Testing Remote");
-            return new LocalPSSF(purgeName);
+            const client = new RedisClient();
+            return new RemotePSSF((ops) => Promise.resolve(client));
         default:
             console.log("Testing Local");
             return new LocalPSSF(purgeName);
     }
-
 }

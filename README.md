@@ -33,6 +33,5 @@ This project is contrubution to public domain and completely free for use, view 
 
 ## Local Build
 1. `npm install`
-2. `npm test`
-3. `npm run build`
-4. Look into "./dist" folder for transpiled lib.
+2. `npm test` Docker with local redis image is must
+3. Look into "./dist" folder for transpiled lib.
