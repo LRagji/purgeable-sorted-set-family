@@ -10,7 +10,7 @@
     "copy-files:macos": "cp ./readme.md ./package.json ./package-lock.json ./license.md ./dist/",
     "clean-build:macos": "rm -rf ./dist/",
     "test-run": "nyc --reporter=html --reporter=text mocha -r ts-node/register ./tests/**/*.ts",
-    "test": "npm run build&& npm run redisstart && npm run test-run && cross-env MODE=1 npm run test-run",
+    "test": "npm run build && npm run redisstart && npm run test-run",
     "build": "npm run clean-build && tsc && npm run copy-files",
     "redisstop": "docker stop TestCentralStore",
     "redisstart": "(npm run redisstop || docker -v )&& docker run --name TestCentralStore -p 6379:6379 -itd --rm redis:latest"
