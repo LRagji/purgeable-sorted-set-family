@@ -14,7 +14,7 @@
     "clean-build:linux": "rm -rf ./dist/",
     "clean-build:windows": "rmdir /s /q .\\dist\\",
     "test-run": "nyc --reporter=html --reporter=text mocha -r ts-node/register ./tests/**/*.ts",
-    "test": "npm run build && npm run redisstart && npm run test-run",
+    "test": "npm run build && npm run redisstart && cross-env REDISCON=redis://127.0.0.1:6379 npm run test-run",
     "build": "(npm run clean-build || node -v) && tsc && npm run copy-files",
     "redisstop": "docker stop TestCentralStore",
     "redisstart": "(npm run redisstop || docker -v )&& docker run --name TestCentralStore -p 6379:6379 -itd --rm redis:latest"
@@ -37,6 +37,7 @@
   },
   "homepage": "https://github.com/LRagji/purgeable-sorted-set-family#readme",
   "devDependencies": {
+    "@types/ioredis": "^4.27.8",
     "@types/mocha": "^9.0.0",
     "@types/node": "^16.11.4",
     "@types/sorted-array-functions": "^1.3.0",

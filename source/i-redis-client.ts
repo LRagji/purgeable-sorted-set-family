@@ -1,7 +1,8 @@
 export interface IRedisClient {
-    acquire(): Promise<void>
-    release(): Promise<void>
-    run(...commandArgs: string[]): Promise<any>
+    acquire(token?: string): Promise<void>
+    release(token?: string): Promise<void>
+    shutdown(): Promise<void>
+    run(commandArgs: string[]): Promise<any>
     pipeline(commands: string[][]): Promise<any>;
     script(filename: string, keys: string[], args: string[]): Promise<any>
 }

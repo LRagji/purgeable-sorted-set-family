@@ -1,14 +1,24 @@
 import * as assert from 'assert';
-import { IPurgeableSortedSetFamily, ISortedStringData, LocalPSSF, RemotePSSF } from '../source/index';
+import { IPurgeableSortedSetFamily, IRedisClient, ISortedStringData, LocalPSSF, RemotePSSF } from '../source/index';
 import { RedisClient } from './redis-client'
 const purgeName = "Pur";
+let client: IRedisClient;
 var runs = [
-    { testTarget: (name = purgeName): IPurgeableSortedSetFamily<ISortedStringData> => new LocalPSSF(name), type: "Local" },
-    //{ testTarget: createRemotePsff, type: "Remote" },
+    { testTarget: (purkeyKey = purgeName): IPurgeableSortedSetFamily<ISortedStringData> => new LocalPSSF(purkeyKey), type: "Local" },
+    { testTarget: createRemotePsff, type: "Remote" },
 ];
 
 runs.forEach(function (run) {
     describe(`"${run.type}" Set/Query component tests`, () => {
+
+        beforeEach(async function () {
+            client = new RedisClient(process.env.REDISCON as string);
+            await client.run(["FLUSHALL"]);
+        });
+
+        afterEach(async function () {
+            await client.shutdown();
+        });
 
         it('should be able to upsert and get string data', async () => {
             //Setup
@@ -275,6 +285,15 @@ runs.forEach(function (run) {
     });
 
     describe(`"${run.type}" Purge component tests`, () => {
+
+        beforeEach(async function () {
+            client = new RedisClient(process.env.REDISCON as string);
+            await client.run(["FLUSHALL"]);
+        });
+
+        afterEach(async function () {
+            await client.shutdown();
+        });
 
         it('should not purge data when nothing is matching', async () => {
             //Setup
@@ -716,7 +735,6 @@ runs.forEach(function (run) {
     });
 });
 
-function createRemotePsff(name = purgeName): IPurgeableSortedSetFamily<ISortedStringData> {
-    const client = new RedisClient();
-    return new RemotePSSF((ops) => Promise.resolve(client), undefined, name);
+function createRemotePsff(purkeyKey = purgeName): IPurgeableSortedSetFamily<ISortedStringData> {
+    return new RemotePSSF((ops) => Promise.resolve(client), purkeyKey);
 }
