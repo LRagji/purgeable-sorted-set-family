@@ -12,10 +12,10 @@ export class RedisClient implements IRedisClient {
         this.redisClient.disconnect();
     }
     async acquire(token: string): Promise<void> {
-        console.time(token);
+        //console.time(token);
     }
     async release(token: string): Promise<void> {
-        console.timeEnd(token);
+        //console.timeEnd(token);
     }
 
     async run(commandArgs: string[]): Promise<any> {

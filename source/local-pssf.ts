@@ -86,7 +86,7 @@ export class LocalPSSF implements IPurgeableSortedSetFamily<ISortedStringData> {
             const unionSet = setNames.reduce((acc, nameOrToken) => {
                 const z = this.sets.get(nameOrToken) || new SortedSet();
                 const results = z.rangeByScore(scoreStart, scoreEnd, { withScores: true });
-                results.forEach((e: Array<string>) => acc.add(e[0], BigInt(e[1]), 10));
+                results.forEach((e: Array<string>) => acc.add(e[0], BigInt(e[1])));
                 return acc;
             }, new SortedSet());
             const results = unionSet.rangeByScore(scoreStart, scoreEnd, { withScores: true });

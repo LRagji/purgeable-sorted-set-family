@@ -3,6 +3,8 @@ import { IBulkResponse } from "./i-bulk-response";
 import { IError } from "./i-error";
 import { IRedisClient } from "./i-redis-client";
 import Crypto from "crypto";
+// @ts-ignore
+import SortedSet from "redis-sorted-set";
 
 const minimumScore = -9007199254740992n;
 const maximumScore = 9007199254740992n;
@@ -20,6 +22,9 @@ export class RemotePSSF implements IPurgeableSortedSetFamily<ISortedStringData> 
     private redisCommandZINCRBY = 'zincrby';
     private redisCommandMEMORY = 'memory';
     private redisCommandMEMORYOptions = 'usage';
+    private redisCommandHGET = 'hget';
+    private redisCommandZRANGEBYSCORE = 'zrangebyscore';
+    private redisCommandZRANGEBYSCOREOptionWITHSCORES = 'withscores';
 
 
     constructor(redisClientResolver: (operation: Operation) => Promise<IRedisClient>,
@@ -100,19 +105,37 @@ export class RemotePSSF implements IPurgeableSortedSetFamily<ISortedStringData> 
             returnObject.error = new Error(`Invalid range start(${scoreStart}) cannot be greator than end(${scoreEnd}).`)
         }
         else {
-            // const setNames = this.setnameToToken.get(setName) || [];
-            // setNames.push(setName);
-            // const unionSet = setNames.reduce((acc, nameOrToken) => {
-            //     const z = this.sets.get(nameOrToken) || new SortedSet();
-            //     const results = z.rangeByScore(scoreStart, scoreEnd, { withScores: true });
-            //     results.forEach((e: Array<string>) => acc.add(e[0], BigInt(e[1]), 10));
-            //     return acc;
-            // }, new SortedSet());
-            // const results = unionSet.rangeByScore(scoreStart, scoreEnd, { withScores: true });
-            // returnObject.data = results.map((e: Array<Array<any>>) => ({ score: e[1], setName: setName, payload: e[0] }));
+            const client = await this.redisClientResolver(Operation.Read);
+            const token = "scoreRangeQuery" + Date.now();
+            try {
+                client.acquire(token)
+                const tokensForSetSerialized = await client.run([this.redisCommandHGET, (this.keyPrefix + this.setnamesToTokensKey), setName]);
+                const setNamesToQuery = JSON.parse(tokensForSetSerialized) as string[] || [];
+                setNamesToQuery.push(setName);
+                const query = setNamesToQuery.map(setName => [this.redisCommandZRANGEBYSCORE, (this.keyPrefix + setName), scoreStart.toString(), scoreEnd.toString(), this.redisCommandZRANGEBYSCOREOptionWITHSCORES]);
+                const results = await client.pipeline(query) as Array<Array<string>>;
+                if (query.length === 1) {
+                    const singularSortedSetResult = results[0];
+                    for (let index = 0; index < singularSortedSetResult.length; index += 2) {
+                        returnObject.data.push({ score: BigInt(singularSortedSetResult[index + 1]), setName: setName, payload: singularSortedSetResult[index] });
+                    };
+                }
+                else {
+                    const unionSet = results.reduce((acc, r) => {
+                        for (let index = 0; index < r.length; index += 2) {
+                            acc.add(r[index], BigInt(r[index + 1]));
+                        };
+                        return acc;
+                    }, new SortedSet());
+                    const finalResults = unionSet.rangeByScore(scoreStart, scoreEnd, { withScores: true });
+                    returnObject.data = finalResults.map((e: Array<Array<any>>) => ({ score: e[1], setName: setName, payload: e[0] }));
+                }
+            }
+            finally {
+                client.release(token);
+            }
         }
         return returnObject;
-        throw new Error("Method not implemented.");
     }
 
     purgeBegin(lastUpsertElapsedTimeInSeconds: number | null, maximumCountThreshold: number | null, maximumBytesThreshold: bigint | null, pendingSortedSetsTimeoutInSeconds?: number, maxSortedSetsToRetrive?: number): Promise<IError<Map<string, ISortedStringData[]>>> {
