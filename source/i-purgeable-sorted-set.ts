@@ -3,7 +3,7 @@ import { IError } from "./i-error";
 
 export interface ISortedStringData {
     score: bigint;
-    bytes: bigint;
+    bytes?: bigint;
     setName: string;
     payload: string
 }

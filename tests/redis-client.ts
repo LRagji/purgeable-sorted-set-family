@@ -1,4 +1,5 @@
 import { IRedisClient } from '../source/index';
+
 export class RedisClient implements IRedisClient {
     acquire(): Promise<void> {
         throw new Error('Method not implemented.');

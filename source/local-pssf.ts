@@ -48,7 +48,7 @@ export class LocalPSSF implements IPurgeableSortedSetFamily<ISortedStringData> {
                     if (byteIndex > -1) {
                         metaBytesElement = this.metaBytes.splice(byteIndex, 1)[0];
                     }
-                    metaBytesElement.bytes += ss.bytes;
+                    metaBytesElement.bytes += ss.bytes || 0n;
                     sortingHelper.add(this.metaBytes, metaBytesElement, this.metaByteCompareFunction);
 
                     //Count computations
@@ -90,7 +90,7 @@ export class LocalPSSF implements IPurgeableSortedSetFamily<ISortedStringData> {
                 return acc;
             }, new SortedSet());
             const results = unionSet.rangeByScore(scoreStart, scoreEnd, { withScores: true });
-            returnObject.data = results.map((e: Array<Array<any>>) => ({ score: e[1], bytes: 0n, setName: setName, payload: e[0] }));
+            returnObject.data = results.map((e: Array<Array<any>>) => ({ score: e[1], setName: setName, payload: e[0] }));
         }
         return Promise.resolve(returnObject);
     }
@@ -155,7 +155,7 @@ export class LocalPSSF implements IPurgeableSortedSetFamily<ISortedStringData> {
             const purgedSS = new SortedSet();
             const returnSetData = new Array<ISortedStringData>();
             results.forEach((zElement: string[]) => {
-                returnSetData.push({ score: BigInt(zElement[1]), bytes: 0n, setName: setName, payload: zElement[0] });//
+                returnSetData.push({ score: BigInt(zElement[1]), setName: setName, payload: zElement[0] });//
                 purgedSS.add(zElement[0], BigInt(zElement[1]));
             });
             const byteIndex = this.metaBytes.findIndex(e => e.name === setName);

@@ -4,7 +4,7 @@ import { RedisClient } from './redis-client'
 const purgeName = "Pur";
 var runs = [
     { testTarget: (name = purgeName): IPurgeableSortedSetFamily<ISortedStringData> => new LocalPSSF(name), type: "Local" },
-    { testTarget: createRemotePsff, type: "Remote" },
+    //{ testTarget: createRemotePsff, type: "Remote" },
 ];
 
 runs.forEach(function (run) {
@@ -26,7 +26,7 @@ runs.forEach(function (run) {
             assert.deepStrictEqual(setResult.failed.length, 0);
             assert.deepStrictEqual(setResult.succeeded, data);
             assert.deepStrictEqual(rangeResult.error, undefined);
-            const readData = data.map(e => { e.bytes = 0n; return e });
+            const readData = data.map(e => { delete e.bytes; return e });
             assert.deepStrictEqual(rangeResult.data, readData);
         });
 
@@ -46,9 +46,9 @@ runs.forEach(function (run) {
             assert.deepStrictEqual(setResult.failed.length, 1);
             assert.deepStrictEqual(setResult.failed[0].error?.message, `Setname "LaukikPur" cannot end with system reserved key "Pur".`);
             assert.deepStrictEqual(setResult.failed[0].data, data[0]);
-            assert.deepStrictEqual(setResult.succeeded, [data[1], data[2]].map(e => { e.bytes = 0n; return e; }));
+            assert.deepStrictEqual(setResult.succeeded, [data[1], data[2]].map(e => { delete e.bytes; return e; }));
             assert.deepStrictEqual(rangeResult.error, undefined);
-            assert.deepStrictEqual(rangeResult.data, [data[1], data[2]].map(e => { e.bytes = 0n; return e; }));
+            assert.deepStrictEqual(rangeResult.data, [data[1], data[2]].map(e => { delete e.bytes; return e; }));
         });
 
         it('should be able to upsert and get updated data', async () => {
@@ -70,7 +70,7 @@ runs.forEach(function (run) {
             assert.deepStrictEqual(setResult2.failed.length, 0);
             assert.deepStrictEqual(setResult2.succeeded, data);
             assert.deepStrictEqual(rangeResult.error, undefined);
-            assert.deepStrictEqual(rangeResult.data, [data[0], data[1], data[3], data[4]].map(e => { e.bytes = 0n; return e; }));
+            assert.deepStrictEqual(rangeResult.data, [data[0], data[1], data[3], data[4]].map(e => { delete e.bytes; return e; }));
             assert.deepStrictEqual(setResult1.failed.length, 0);
             assert.deepStrictEqual(setResult1.succeeded, [data[0], data[1], data[2]]);
         });
@@ -88,7 +88,7 @@ runs.forEach(function (run) {
 
             //Verify
             assert.deepStrictEqual(rangeResult.error, undefined);
-            assert.deepStrictEqual(rangeResult.data, [data[0], data[1]].map(e => { e.bytes = 0n; return e; }));
+            assert.deepStrictEqual(rangeResult.data, [data[0], data[1]].map(e => { delete e.bytes; return e; }));
         });
 
         it('should be inclusive on range reads', async () => {
@@ -147,8 +147,8 @@ runs.forEach(function (run) {
             //Verify
             assert.deepStrictEqual(setResult.failed.length, 0);
             assert.deepStrictEqual(setResult.succeeded, data);
-            assert.deepStrictEqual(rangeResult1.data, [data[0], data[1], data[2]].map(e => { e.bytes = 0n; return e; }));
-            assert.deepStrictEqual(rangeResult2.data, [data[3], data[4], data[5]].map(e => { e.bytes = 0n; return e; }));
+            assert.deepStrictEqual(rangeResult1.data, [data[0], data[1], data[2]].map(e => { delete e.bytes; return e; }));
+            assert.deepStrictEqual(rangeResult2.data, [data[3], data[4], data[5]].map(e => { delete e.bytes; return e; }));
         });
 
         it('should return correct results when queried outside smaller range', async () => {
@@ -204,7 +204,7 @@ runs.forEach(function (run) {
             //Verify
             assert.deepStrictEqual(setResult.failed.length, 0);
             assert.deepStrictEqual(setResult.succeeded, data);
-            assert.deepStrictEqual(rangeResult.data, [data[0]].map(e => { e.bytes = 0n; return e; }));
+            assert.deepStrictEqual(rangeResult.data, [data[0]].map(e => { delete e.bytes; return e; }));
             assert.deepStrictEqual(rangeResult.error, undefined);
         });
 
@@ -224,7 +224,7 @@ runs.forEach(function (run) {
             assert.deepStrictEqual(setResult.failed.length, 0);
             assert.deepStrictEqual(setResult.succeeded.length, 3);
             data.splice(0, 2);
-            const readData = data.map(e => { e.bytes = 0n; return e });
+            const readData = data.map(e => { delete e.bytes; return e });
             assert.deepStrictEqual(rangeResult.data, readData);
             assert.deepStrictEqual(rangeResult.error, undefined);
         });
@@ -269,8 +269,8 @@ runs.forEach(function (run) {
             assert.deepStrictEqual(setResult.failed.length, 0);
             assert.deepStrictEqual(setResult.succeeded, data);
             assert.deepStrictEqual(rangeResult.error, undefined);
-            assert.deepStrictEqual(rangeResult.data, new Array({ score: 4n, payload: "B", setName: "Laukik", bytes: 0n },
-                { score: 100n, payload: "C", setName: "Laukik", bytes: 0n }, { score: 309n, payload: "A", setName: "Laukik", bytes: 0n }));
+            assert.deepStrictEqual(rangeResult.data, new Array({ score: 4n, payload: "B", setName: "Laukik" },
+                { score: 100n, payload: "C", setName: "Laukik" }, { score: 309n, payload: "A", setName: "Laukik" }));
         });
     });
 
@@ -315,7 +315,7 @@ runs.forEach(function (run) {
             assert.deepStrictEqual(Array.from(purgeResult.data.keys()).length, 1);
             const token = Array.from(purgeResult.data.keys())[0];
             assert.deepStrictEqual(token, "Laukik" + purgeName);
-            assert.deepStrictEqual(purgeResult.data.get(token), [data[0], data[1], data[2]].map(e => { e.bytes = 0n; return e; }));
+            assert.deepStrictEqual(purgeResult.data.get(token), [data[0], data[1], data[2]].map(e => { delete e.bytes; return e; }));
         });
 
         it('should not purge data when bytes have not exceeded', async () => {
@@ -357,7 +357,7 @@ runs.forEach(function (run) {
             assert.deepStrictEqual(Array.from(purgeResult.data.keys()).length, 1);
             const token = Array.from(purgeResult.data.keys())[0];
             assert.deepStrictEqual(token, "Laukik" + purgeName);
-            assert.deepStrictEqual(purgeResult.data.get(token), [data[0], data[1], data[2]].map(e => { e.bytes = 0n; return e; }));
+            assert.deepStrictEqual(purgeResult.data.get(token), [data[0], data[1], data[2]].map(e => { delete e.bytes; return e; }));
         });
 
         it('should not purge data when count has not exceeded', async () => {
@@ -399,7 +399,7 @@ runs.forEach(function (run) {
             assert.deepStrictEqual(Array.from(purgeResult.data.keys()).length, 1);
             const token = Array.from(purgeResult.data.keys())[0];
             assert.deepStrictEqual(token, "Laukik" + purgeName);
-            assert.deepStrictEqual(purgeResult.data.get(token), [data[0], data[1], data[2]].map(e => { e.bytes = 0n; return e; }));
+            assert.deepStrictEqual(purgeResult.data.get(token), [data[0], data[1], data[2]].map(e => { delete e.bytes; return e; }));
         }).timeout(-1);
 
         it('should not purge data when timeout has not exceeded', async () => {
@@ -467,7 +467,7 @@ runs.forEach(function (run) {
             assert.deepStrictEqual(Array.from(timedoutPurgeResult.data.keys()).length, 1);
             const token1 = Array.from(timedoutPurgeResult.data.keys())[0];
             assert.deepStrictEqual(token1, "Laukik" + purgeName);
-            assert.deepStrictEqual(timedoutPurgeResult.data.get(token1), [data[0], data[1], data[2]].map(e => { e.bytes = 0n; return e; }));
+            assert.deepStrictEqual(timedoutPurgeResult.data.get(token1), [data[0], data[1], data[2]].map(e => { delete e.bytes; return e; }));
 
             assert.deepStrictEqual(freshSetResult.failed.length, 0);
             assert.deepStrictEqual(freshSetResult.succeeded, freshData);
@@ -476,7 +476,7 @@ runs.forEach(function (run) {
             assert.deepStrictEqual(Array.from(purgeResult.data.keys()).length, 1);
             const token2 = Array.from(purgeResult.data.keys())[0];
             assert.deepStrictEqual(token2, "Laukik" + purgeName + purgeName);
-            assert.deepStrictEqual(purgeResult.data.get(token2), [data[0], data[1], data[2]].map(e => { e.bytes = 0n; return e; }));
+            assert.deepStrictEqual(purgeResult.data.get(token2), [data[0], data[1], data[2]].map(e => { delete e.bytes; return e; }));
 
         }).timeout(-1);
 
@@ -508,7 +508,7 @@ runs.forEach(function (run) {
             assert.deepStrictEqual(Array.from(timedoutPurgeResult.data.keys()).length, 1);
             const token1 = Array.from(timedoutPurgeResult.data.keys())[0];
             assert.deepStrictEqual(token1, "Laukik" + purgeName);
-            assert.deepStrictEqual(timedoutPurgeResult.data.get(token1), [data[0], data[1], data[2]].map(e => { e.bytes = 0n; return e; }));
+            assert.deepStrictEqual(timedoutPurgeResult.data.get(token1), [data[0], data[1], data[2]].map(e => { delete e.bytes; return e; }));
 
             assert.deepStrictEqual(purgeFinishedResult.succeeded, [token1]);
             assert.deepStrictEqual(purgeFinishedResult.failed.length, 0);
@@ -555,9 +555,9 @@ runs.forEach(function (run) {
             assert.deepStrictEqual(Array.from(purgeResult.data.keys()).length, 1);
             const token1 = Array.from(purgeResult.data.keys())[0];
             assert.deepStrictEqual(token1, "Laukik" + purgeName);
-            assert.deepStrictEqual(purgeResult.data.get(token1), [data[0], data[1], data[2]].map(e => { e.bytes = 0n; return e; }));
+            assert.deepStrictEqual(purgeResult.data.get(token1), [data[0], data[1], data[2]].map(e => { delete e.bytes; return e; }));
             assert.deepStrictEqual(readData.error, undefined);
-            assert.deepStrictEqual(readData.data, [data[0], data[1], data[2]].map(e => { e.bytes = 0n; return e; }));
+            assert.deepStrictEqual(readData.data, [data[0], data[1], data[2]].map(e => { delete e.bytes; return e; }));
         });
 
         it('should not be able to read data when its purge has completed', async () => {
@@ -582,7 +582,7 @@ runs.forEach(function (run) {
             assert.deepStrictEqual(Array.from(purgeResult.data.keys()).length, 1);
             const token1 = Array.from(purgeResult.data.keys())[0];
             assert.deepStrictEqual(token1, "Laukik" + purgeName);
-            assert.deepStrictEqual(purgeResult.data.get(token1), [data[0], data[1], data[2]].map(e => { e.bytes = 0n; return e; }));
+            assert.deepStrictEqual(purgeResult.data.get(token1), [data[0], data[1], data[2]].map(e => { delete e.bytes; return e; }));
             assert.deepStrictEqual(purgeCompleted.failed.length, 0);
             assert.deepStrictEqual(purgeCompleted.succeeded, [token1]);
             assert.deepStrictEqual(readData.error, undefined);
@@ -618,7 +618,7 @@ runs.forEach(function (run) {
             assert.deepStrictEqual(Array.from(firstPurgeResult.data.keys()).length, 1);
             const token1 = Array.from(firstPurgeResult.data.keys())[0];
             assert.deepStrictEqual(token1, "Laukik" + purgeName);
-            assert.deepStrictEqual(firstPurgeResult.data.get(token1), [data[0], data[1], data[2]].map(e => { e.bytes = 0n; return e; }));
+            assert.deepStrictEqual(firstPurgeResult.data.get(token1), [data[0], data[1], data[2]].map(e => { delete e.bytes; return e; }));
 
             assert.deepStrictEqual(freshSetResult.failed.length, 0);
             assert.deepStrictEqual(freshSetResult.succeeded, freshData);
@@ -627,12 +627,12 @@ runs.forEach(function (run) {
             assert.deepStrictEqual(Array.from(secondPurgeResult.data.keys()).length, 1);
             const token2 = Array.from(secondPurgeResult.data.keys())[0];
             assert.deepStrictEqual(token2, "Laukik" + purgeName + purgeName);
-            assert.deepStrictEqual(secondPurgeResult.data.get(token2), [data[0], data[1], data[2]].map(e => { e.bytes = 0n; return e; }));
+            assert.deepStrictEqual(secondPurgeResult.data.get(token2), [data[0], data[1], data[2]].map(e => { delete e.bytes; return e; }));
 
             assert.deepStrictEqual(readResultFirstSet.error, undefined);
             assert.deepStrictEqual(readResultSecondSet.error, undefined);
-            assert.deepStrictEqual(readResultFirstSet.data, [data[0], data[1], data[2]].map(e => { e.bytes = 0n; return e; }));
-            assert.deepStrictEqual(readResultSecondSet.data, [freshData[0], freshData[1], freshData[2]].map(e => { e.bytes = 0n; return e; }));
+            assert.deepStrictEqual(readResultFirstSet.data, [data[0], data[1], data[2]].map(e => { delete e.bytes; return e; }));
+            assert.deepStrictEqual(readResultSecondSet.data, [freshData[0], freshData[1], freshData[2]].map(e => { delete e.bytes; return e; }));
 
         }).timeout(-1);
 
@@ -660,11 +660,11 @@ runs.forEach(function (run) {
             assert.deepStrictEqual(Array.from(purgeResult.data.keys()).length, 1);
             const token1 = Array.from(purgeResult.data.keys())[0];
             assert.deepStrictEqual(token1, "Laukik" + purgeName);
-            assert.deepStrictEqual(purgeResult.data.get(token1), [data[0], data[1], data[2]].map(e => { e.bytes = 0n; return e; }));
+            assert.deepStrictEqual(purgeResult.data.get(token1), [data[0], data[1], data[2]].map(e => { delete e.bytes; return e; }));
             assert.deepStrictEqual(updateResult.failed.length, 0);
             assert.deepStrictEqual(updateResult.succeeded, updateData);
             assert.deepStrictEqual(readData.error, undefined);
-            assert.deepStrictEqual(readData.data, [data[1], data[2], updateData[0]].map(e => { e.bytes = 0n; return e; }));
+            assert.deepStrictEqual(readData.data, [data[1], data[2], updateData[0]].map(e => { delete e.bytes; return e; }));
         });
 
         it('multiple purge with update should read correct data', async () => {
@@ -694,19 +694,19 @@ runs.forEach(function (run) {
             assert.deepStrictEqual(Array.from(purgeResult1.data.keys()).length, 1);
             const token1 = Array.from(purgeResult1.data.keys())[0];
             assert.deepStrictEqual(token1, "Laukik" + purgeName);
-            assert.deepStrictEqual(purgeResult1.data.get(token1), [data[0], data[1], data[2]].map(e => { e.bytes = 0n; return e; }));
+            assert.deepStrictEqual(purgeResult1.data.get(token1), [data[0], data[1], data[2]].map(e => { delete e.bytes; return e; }));
             assert.deepStrictEqual(updateResult.failed.length, 0);
             assert.deepStrictEqual(updateResult.succeeded, updateData);
             assert.deepStrictEqual(purgeCompletedResult1.failed.length, 0);
             assert.deepStrictEqual(purgeCompletedResult1.succeeded, [token1]);
             assert.deepStrictEqual(readData1.error, undefined);
-            assert.deepStrictEqual(readData1.data, [updateData[0]].map(e => { e.bytes = 0n; return e; }));
+            assert.deepStrictEqual(readData1.data, [updateData[0]].map(e => { delete e.bytes; return e; }));
 
             assert.deepStrictEqual(purgeResult2.error, undefined);
             assert.deepStrictEqual(Array.from(purgeResult2.data.keys()).length, 1);
             const token2 = Array.from(purgeResult2.data.keys())[0];
             assert.deepStrictEqual(token2, token1);
-            assert.deepStrictEqual(purgeResult2.data.get(token2), [updateData[0]].map(e => { e.bytes = 0n; return e; }));
+            assert.deepStrictEqual(purgeResult2.data.get(token2), [updateData[0]].map(e => { delete e.bytes; return e; }));
             assert.deepStrictEqual(purgeCompletedResult2.failed.length, 0);
             assert.deepStrictEqual(purgeCompletedResult2.succeeded, [token2]);
             assert.deepStrictEqual(readData2.error, undefined);

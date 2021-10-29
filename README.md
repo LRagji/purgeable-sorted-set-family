@@ -1,4 +1,4 @@
-# purgeable-sorted-set-family
+# purgeable-sorted-set-family (PSSF)
 A data structure with capabilities of "sorted-set", with additional functionality of data purge via threshold limits for memory, time, length on the set.
 
 Few definations before we jump in:
