@@ -83,14 +83,21 @@ export class LocalPSSF implements IPurgeableSortedSetFamily<ISortedStringData> {
         else {
             const setNames = this.setnameToToken.get(setName) || [];
             setNames.push(setName);
-            const unionSet = setNames.reduce((acc, nameOrToken) => {
-                const z = this.sets.get(nameOrToken) || new SortedSet();
+            if (setNames.length === 1) {
+                const z = this.sets.get(setNames[0]) || new SortedSet();
                 const results = z.rangeByScore(scoreStart, scoreEnd, { withScores: true });
-                results.forEach((e: Array<string>) => acc.add(e[0], BigInt(e[1])));
-                return acc;
-            }, new SortedSet());
-            const results = unionSet.rangeByScore(scoreStart, scoreEnd, { withScores: true });
-            returnObject.data = results.map((e: Array<Array<any>>) => ({ score: e[1], setName: setName, payload: e[0] }));
+                returnObject.data = results.map((e: Array<string>) => ({ score: BigInt(e[1]), setName: setNames[0], payload: e[0] }));
+            }
+            else {
+                const unionSet = setNames.reduce((acc, nameOrToken) => {
+                    const z = this.sets.get(nameOrToken) || new SortedSet();
+                    const results = z.rangeByScore(scoreStart, scoreEnd, { withScores: true });
+                    results.forEach((e: Array<string>) => acc.add(e[0], BigInt(e[1])));
+                    return acc;
+                }, new SortedSet());
+                const results = unionSet.rangeByScore(scoreStart, scoreEnd, { withScores: true });
+                returnObject.data = results.map((e: Array<Array<any>>) => ({ score: e[1], setName: setName, payload: e[0] }));
+            }
         }
         return Promise.resolve(returnObject);
     }
