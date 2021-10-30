@@ -107,55 +107,49 @@ export class LocalPSSF implements IPurgeableSortedSetFamily<ISortedStringData> {
 
         //Query Pending sortedsets
         const adjustedExpiryTime = Date.now() - (pendingSortedSetsTimeoutInSeconds * 1000);
-        const pendingSets: Array<string> = [];
+        const purgableSets: Array<string> = [];
         let pendingIndex = sortingHelper.lt(this.pendingSets, { time: adjustedExpiryTime, token: "" }, this.pendingSetsCompareFunctions);
-        while (pendingIndex < this.pendingSets.length && pendingIndex > -1) {
+        while (pendingIndex < this.pendingSets.length && pendingIndex > -1 && purgableSets.length < maxSortedSetsToRetrive) {
             const token = this.pendingSets[pendingIndex].token;
-            pendingSets.push(token);
+            purgableSets.push(token);
             pendingIndex++;
         }
 
         //Query Time Partition
-        const timePartitions: Array<string> = [];
-        if (lastUpsertElapsedTimeInSeconds !== null) {
+        if (lastUpsertElapsedTimeInSeconds !== null && purgableSets.length < maxSortedSetsToRetrive) {
             const adjustedElapsedTime = Date.now() - (lastUpsertElapsedTimeInSeconds * 1000);
             let timeIndex = sortingHelper.lt(this.metaLastSetTime, { setTime: adjustedElapsedTime, name: "" }, this.metaTimeCompareFunction);
-            while (timeIndex < this.metaLastSetTime.length && timeIndex > -1) {
+            while (timeIndex < this.metaLastSetTime.length && timeIndex > -1 && purgableSets.length < maxSortedSetsToRetrive) {
                 const name = this.metaLastSetTime[timeIndex].name;
-                timePartitions.push(name);
+                purgableSets.push(name);
                 timeIndex++;
             }
         }
 
         //Query Count Partition
-        const countPartitions: Array<string> = [];
-        if (maximumCountThreshold !== null) {
+        if (maximumCountThreshold !== null && purgableSets.length < maxSortedSetsToRetrive) {
             let countIndex = sortingHelper.gte(this.metaCount, { count: maximumCountThreshold, name: "" }, this.metaCountCompareFunction);
-            while (countIndex < this.metaCount.length && countIndex > -1) {
+            while (countIndex < this.metaCount.length && countIndex > -1 && purgableSets.length < maxSortedSetsToRetrive) {
                 const name = this.metaCount[countIndex].name;
-                countPartitions.push(name);
+                purgableSets.push(name);
                 countIndex++;
             }
         }
 
         //Query Bytes Partition
-        const bytesPartitions: Array<string> = [];
-        if (maximumBytesThreshold !== null) {
+        if (maximumBytesThreshold !== null && purgableSets.length < maxSortedSetsToRetrive) {
             let byteIndex = sortingHelper.gte(this.metaBytes, { bytes: maximumBytesThreshold, name: "" }, this.metaByteCompareFunction);
-            while (byteIndex < this.metaBytes.length && byteIndex > -1) {
+            while (byteIndex < this.metaBytes.length && byteIndex > -1 && purgableSets.length < maxSortedSetsToRetrive) {
                 const name = this.metaBytes[byteIndex].name;
-                bytesPartitions.push(name);
+                purgableSets.push(name);
                 byteIndex++;
             }
         }
 
-        //Combine partitions
-        const partitionsToDump: Array<string> = [...pendingSets, ...timePartitions, ...countPartitions, ...bytesPartitions];
-
         //Dump partitions
         let counter = 0;
-        while (counter < Math.min(partitionsToDump.length, maxSortedSetsToRetrive)) {
-            const nameOrToken = partitionsToDump[counter];
+        while (counter < purgableSets.length) {
+            const nameOrToken = purgableSets[counter];
             const setName = this.tokenToSetname.get(nameOrToken) || nameOrToken;
             const z = this.sets.get(nameOrToken) || new SortedSet();
             const results = z.rangeByScore(null, null, { withScores: true });
