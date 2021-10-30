@@ -115,7 +115,7 @@ export class LocalPSSF implements IPurgeableSortedSetFamily<ISortedStringData> {
             pendingIndex++;
         }
 
-        //Query Time Partition
+        //Query Elapsed sortedsets
         if (lastUpsertElapsedTimeInSeconds !== null && purgableSets.length < maxSortedSetsToRetrive) {
             const adjustedElapsedTime = Date.now() - (lastUpsertElapsedTimeInSeconds * 1000);
             let timeIndex = sortingHelper.lt(this.metaLastSetTime, { setTime: adjustedElapsedTime, name: "" }, this.metaTimeCompareFunction);
@@ -126,7 +126,7 @@ export class LocalPSSF implements IPurgeableSortedSetFamily<ISortedStringData> {
             }
         }
 
-        //Query Count Partition
+        //Query Count sortedsets
         if (maximumCountThreshold !== null && purgableSets.length < maxSortedSetsToRetrive) {
             let countIndex = sortingHelper.gte(this.metaCount, { count: maximumCountThreshold, name: "" }, this.metaCountCompareFunction);
             while (countIndex < this.metaCount.length && countIndex > -1 && purgableSets.length < maxSortedSetsToRetrive) {
@@ -136,7 +136,7 @@ export class LocalPSSF implements IPurgeableSortedSetFamily<ISortedStringData> {
             }
         }
 
-        //Query Bytes Partition
+        //Query Bytes sortedsets
         if (maximumBytesThreshold !== null && purgableSets.length < maxSortedSetsToRetrive) {
             let byteIndex = sortingHelper.gte(this.metaBytes, { bytes: maximumBytesThreshold, name: "" }, this.metaByteCompareFunction);
             while (byteIndex < this.metaBytes.length && byteIndex > -1 && purgableSets.length < maxSortedSetsToRetrive) {
@@ -173,7 +173,7 @@ export class LocalPSSF implements IPurgeableSortedSetFamily<ISortedStringData> {
             }
 
             let token = this.constructToken(setName);
-            if (this.tokenToSetname.has(nameOrToken)) {//This means its token 
+            if (setName !== nameOrToken) {//This means nameOrToken is token 
                 this.tokenToSetname.delete(nameOrToken);
                 const dataPurgeTokens = this.setnameToToken.get(setName) || [];
                 const tokenIndex = dataPurgeTokens.findIndex(e => e === nameOrToken)
