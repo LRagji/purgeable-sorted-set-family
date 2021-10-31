@@ -18,7 +18,7 @@
     "build": "(npm run clean-build || node -v) && tsc && npm run copy-files",
     "redisstop": "docker stop TestCentralStore",
     "redisstart": "(npm run redisstop || docker -v )&& docker run --name TestCentralStore -p 6379:6379 -itd --rm redis:latest",
-    "push": "npm test && cd ./dist && npm publish"
+    "push": "npm test && npm version patch && cd ./dist && npm publish"
   },
   "repository": {
     "type": "git",
