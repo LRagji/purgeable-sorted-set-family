@@ -2,8 +2,8 @@
   "name": "purgeable-sorted-set-family",
   "version": "0.0.1",
   "description": "SortedSet data structure with purge functionality.",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./index.js",
+  "types": "./index.d.ts",
   "scripts": {
     "clean-build": "run-script-os",
     "copy-files": "run-script-os",
@@ -17,7 +17,8 @@
     "test": "npm run build && npm run redisstart && cross-env REDISCON=redis://127.0.0.1:6379 npm run test-run",
     "build": "(npm run clean-build || node -v) && tsc && npm run copy-files",
     "redisstop": "docker stop TestCentralStore",
-    "redisstart": "(npm run redisstop || docker -v )&& docker run --name TestCentralStore -p 6379:6379 -itd --rm redis:latest"
+    "redisstart": "(npm run redisstop || docker -v )&& docker run --name TestCentralStore -p 6379:6379 -itd --rm redis:latest",
+    "push": "npm test && cd ./dist && npm publish"
   },
   "repository": {
     "type": "git",
