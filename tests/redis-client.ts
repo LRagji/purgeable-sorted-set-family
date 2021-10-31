@@ -1,8 +1,11 @@
 import { IRedisClient } from '../source/index';
 import ioredis from 'ioredis';
+import fs from 'fs';
+import Crypto from "crypto";
 
 export class RedisClient implements IRedisClient {
     private redisClient: ioredis.Redis;
+    private filenameToCommand = new Map<string, string>();
 
     constructor(redisConnectionString: string) {
         this.redisClient = new ioredis(redisConnectionString);
@@ -26,7 +29,7 @@ export class RedisClient implements IRedisClient {
     }
 
     async pipeline(commands: string[][]): Promise<any> {
-        //console.log(commands);
+        // console.log(commands);
         const result = await this.redisClient.multi(commands)
             .exec();
         const finalResult = result.map(r => {
@@ -36,11 +39,31 @@ export class RedisClient implements IRedisClient {
             }
             return r[0];
         });
-        //console.log(finalResult);
+        // console.log(finalResult);
         return finalResult;
     }
 
-    script(filename: string, keys: string[], args: string[]): Promise<any> {
-        throw new Error('Method not implemented.');
+    async script(filename: string, keys: string[], args: string[]): Promise<any> {
+        let command = this.filenameToCommand.get(filename);
+        if (command == null) {
+            const contents = await new Promise<string>((acc, rej) => {
+                fs.readFile(filename, "utf8", (err, data) => {
+                    if (err !== null) {
+                        rej(err);
+                    };
+                    acc(data);
+                });
+            });
+            command = Crypto.createHash("sha256").update(contents, "binary").digest("hex")
+            this.redisClient.defineCommand(command, { lua: contents });
+            this.filenameToCommand.set(filename, command);
+        }
+        // console.log(keys);
+        // console.log(args);
+        //console.log(filename);
+        // @ts-ignore
+        const results = await this.redisClient[command](keys.length, keys, args);
+        //console.log(results);
+        return results;
     }
 }

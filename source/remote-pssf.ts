@@ -3,6 +3,7 @@ import { IBulkResponse } from "./i-bulk-response";
 import { IError } from "./i-error";
 import { IRedisClient } from "./i-redis-client";
 import Crypto from "crypto";
+import path from "path";
 // @ts-ignore
 import SortedSet from "redis-sorted-set";
 
@@ -16,22 +17,27 @@ export class RemotePSSF implements IPurgeableSortedSetFamily<ISortedStringData> 
     private countKey: string;
     private bytesKey: string;
     private purgeKeyAppend: string;
+    private pendingSetKey: string;
     private setnamesToTokensKeyAppend: string;
     private tokenToSetName: string;
     private redisCommandZADD = 'zadd';
     private redisCommandZINCRBY = 'zincrby';
     private redisCommandMEMORY = 'memory';
     private redisCommandMEMORYOptions = 'usage';
-    private redisCommandHGET = 'hget';
+    private redisCommandLRANGE = 'lrange';
     private redisCommandZRANGEBYSCORE = 'zrangebyscore';
     private redisCommandZRANGEBYSCOREOptionWITHSCORES = 'withscores';
 
 
     constructor(redisClientResolver: (operation: Operation) => Promise<IRedisClient>,
         purgeKeyAppend: string = "-Purged", setnamesToTokensKeyAppend = "SNTS", tokenToSetName = "TSN",
+        pendingSetKey: string = "Pending",
         activityKey: string = "Activity", countKey: string = "Stats", bytesKey: string = "Bytes") {
 
-        if (activityKey.endsWith(purgeKeyAppend) || countKey.endsWith(purgeKeyAppend) || bytesKey.endsWith(purgeKeyAppend) || tokenToSetName.endsWith(purgeKeyAppend) || setnamesToTokensKeyAppend.endsWith(purgeKeyAppend)) {
+        //TODO Reimplement keys validations
+        //purgeKeyAppend cannot be empty string or it will not able to distinguish between normal set and purged set as names will remain same.
+
+        if (activityKey.endsWith(purgeKeyAppend) || countKey.endsWith(purgeKeyAppend) || bytesKey.endsWith(purgeKeyAppend) || tokenToSetName.endsWith(purgeKeyAppend) || setnamesToTokensKeyAppend.endsWith(purgeKeyAppend) || pendingSetKey.endsWith(purgeKeyAppend)) {
             throw new Error(`Reserved keys "${activityKey},${countKey},${bytesKey},${tokenToSetName},${setnamesToTokensKeyAppend}" cannot end with "purgeKeyAppend"(${purgeKeyAppend}).`);
         }
         if (activityKey === countKey || activityKey === bytesKey || countKey === bytesKey || tokenToSetName === setnamesToTokensKeyAppend
@@ -48,6 +54,7 @@ export class RemotePSSF implements IPurgeableSortedSetFamily<ISortedStringData> 
         this.purgeKeyAppend = purgeKeyAppend;
         this.setnamesToTokensKeyAppend = setnamesToTokensKeyAppend;
         this.tokenToSetName = tokenToSetName;
+        this.pendingSetKey = pendingSetKey;
     }
 
     private settingsHash(settings: object) {
@@ -87,8 +94,8 @@ export class RemotePSSF implements IPurgeableSortedSetFamily<ISortedStringData> 
                 setsPipeline.push([this.redisCommandZADD, (this.keyPrefix + sortedSetName), ...values],//Main Sorted Set
                     [this.redisCommandZADD, (this.keyPrefix + this.activityKey), (Date.now() / 1000).toFixed(0), sortedSetName], //Sets Activity Time
                     [this.redisCommandZINCRBY, (this.keyPrefix + this.countKey), (values.length / 2).toFixed(0), sortedSetName]); //Sets Count
-                setsBytesPipeline.push([this.redisCommandMEMORY, this.redisCommandMEMORYOptions, (this.keyPrefix + sortedSetName)]);//Sets Bytes Query
-                setsBytesUpdatesPipeline.push([this.redisCommandZADD, (this.bytesKey + sortedSetName), "0", sortedSetName]);//Sets total Bytes
+                setsBytesPipeline.push([this.redisCommandMEMORY, this.redisCommandMEMORYOptions, (this.keyPrefix + sortedSetName)]);//Get Bytes Query
+                setsBytesUpdatesPipeline.push([this.redisCommandZADD, (this.keyPrefix + this.bytesKey), "0", sortedSetName]);//Sets total Bytes
             });
             await client.acquire(token);
             await client.pipeline(setsPipeline);
@@ -112,8 +119,7 @@ export class RemotePSSF implements IPurgeableSortedSetFamily<ISortedStringData> 
             const token = "scoreRangeQuery" + Date.now();
             try {
                 client.acquire(token)
-                const tokensForSetSerialized = await client.run([this.redisCommandHGET, (this.keyPrefix + setName + this.setnamesToTokensKeyAppend), setName]);
-                const setNamesToQuery = JSON.parse(tokensForSetSerialized) as string[] || [];
+                const setNamesToQuery = await client.run([this.redisCommandLRANGE, (this.keyPrefix + setName + this.setnamesToTokensKeyAppend), "0", "-1"]) as string[] || [];
                 setNamesToQuery.push(setName);
                 const query = setNamesToQuery.map(setName => [this.redisCommandZRANGEBYSCORE, (this.keyPrefix + setName), scoreStart.toString(), scoreEnd.toString(), this.redisCommandZRANGEBYSCOREOptionWITHSCORES]);
                 const results = await client.pipeline(query) as Array<Array<string>>;
@@ -135,129 +141,77 @@ export class RemotePSSF implements IPurgeableSortedSetFamily<ISortedStringData> 
                 }
             }
             finally {
-                client.release(token);
+                await client.release(token);
             }
         }
         return returnObject;
     }
 
-    async purgeBegin(lastUpsertElapsedTimeInSeconds: number | null, maximumCountThreshold: number | null, maximumBytesThreshold: bigint | null, pendingSortedSetsTimeoutInSeconds?: number, maxSortedSetsToRetrive?: number): Promise<IError<Map<string, ISortedStringData[]>>> {
-        // const returnObject: IError<Map<string, Array<ISortedStringData>>> = { data: new Map<string, Array<ISortedStringData>>(), error: undefined };
-
-        // //Query Pending sortedsets
-        // const adjustedExpiryTime = Date.now() - (pendingSortedSetsTimeoutInSeconds * 1000);
-        // const pendingSets: Array<string> = [];
-        // let pendingIndex = sortingHelper.lt(this.pendingSets, { time: adjustedExpiryTime, token: "" }, this.pendingSetsCompareFunctions);
-        // while (pendingIndex < this.pendingSets.length && pendingIndex > -1) {
-        //     const token = this.pendingSets[pendingIndex].token;
-        //     pendingSets.push(token);
-        //     pendingIndex++;
-        // }
-
-        // //Query Time Partition
-        // const timePartitions: Array<string> = [];
-        // if (lastUpsertElapsedTimeInSeconds !== null) {
-        //     const adjustedElapsedTime = Date.now() - (lastUpsertElapsedTimeInSeconds * 1000);
-        //     let timeIndex = sortingHelper.lt(this.metaLastSetTime, { setTime: adjustedElapsedTime, name: "" }, this.metaTimeCompareFunction);
-        //     while (timeIndex < this.metaLastSetTime.length && timeIndex > -1) {
-        //         const name = this.metaLastSetTime[timeIndex].name;
-        //         timePartitions.push(name);
-        //         timeIndex++;
-        //     }
-        // }
-
-        // //Query Count Partition
-        // const countPartitions: Array<string> = [];
-        // if (maximumCountThreshold !== null) {
-        //     let countIndex = sortingHelper.gte(this.metaCount, { count: maximumCountThreshold, name: "" }, this.metaCountCompareFunction);
-        //     while (countIndex < this.metaCount.length && countIndex > -1) {
-        //         const name = this.metaCount[countIndex].name;
-        //         countPartitions.push(name);
-        //         countIndex++;
-        //     }
-        // }
-
-        // //Query Bytes Partition
-        // const bytesPartitions: Array<string> = [];
-        // if (maximumBytesThreshold !== null) {
-        //     let byteIndex = sortingHelper.gte(this.metaBytes, { bytes: maximumBytesThreshold, name: "" }, this.metaByteCompareFunction);
-        //     while (byteIndex < this.metaBytes.length && byteIndex > -1) {
-        //         const name = this.metaBytes[byteIndex].name;
-        //         bytesPartitions.push(name);
-        //         byteIndex++;
-        //     }
-        // }
-
-        // //Combine partitions
-        // const partitionsToDump: Array<string> = [...pendingSets, ...timePartitions, ...countPartitions, ...bytesPartitions];
-
-        // //Dump partitions
-        // let counter = 0;
-        // while (counter < Math.min(partitionsToDump.length, maxSortedSetsToRetrive)) {
-        //     const nameOrToken = partitionsToDump[counter];
-        //     const setName = this.tokenToSetname.get(nameOrToken) || nameOrToken;
-        //     const z = this.sets.get(nameOrToken) || new SortedSet();
-        //     const results = z.rangeByScore(null, null, { withScores: true });
-        //     const purgedSS = new SortedSet();
-        //     const returnSetData = new Array<ISortedStringData>();
-        //     results.forEach((zElement: string[]) => {
-        //         returnSetData.push({ score: BigInt(zElement[1]), setName: setName, payload: zElement[0] });//
-        //         purgedSS.add(zElement[0], BigInt(zElement[1]));
-        //     });
-        //     const byteIndex = this.metaBytes.findIndex(e => e.name === setName);
-        //     const countIndex = this.metaCount.findIndex(e => e.name === setName);
-        //     const lastEditedIndex = this.metaLastSetTime.findIndex(e => e.name === setName);
-        //     if (byteIndex !== -1) {
-        //         this.metaBytes.splice(byteIndex, 1);
-        //     }
-        //     if (countIndex !== -1) {
-        //         this.metaCount.splice(countIndex, 1);
-        //     }
-        //     if (lastEditedIndex !== -1) {
-        //         this.metaLastSetTime.splice(lastEditedIndex, 1);
-        //     }
-
-        //     let token = this.constructToken(setName);
-        //     if (this.tokenToSetname.has(nameOrToken)) {//This means its token 
-        //         this.tokenToSetname.delete(nameOrToken);
-        //         const dataPurgeTokens = this.setnameToToken.get(setName) || [];
-        //         const tokenIndex = dataPurgeTokens.findIndex(e => e === nameOrToken)
-        //         const pendingIndex = this.pendingSets.findIndex(e => e.token === nameOrToken);
-        //         if (tokenIndex !== -1) {
-        //             dataPurgeTokens.splice(tokenIndex, 1);
-        //         }
-        //         if (pendingIndex !== -1) {
-        //             this.pendingSets.splice(pendingIndex, 1);
-        //         }
-        //         this.setnameToToken.set(setName, dataPurgeTokens);
-        //         token = this.constructToken(nameOrToken);
-        //     }
-        //     sortingHelper.add(this.pendingSets, { token: token, time: Date.now() }, this.pendingSetsCompareFunctions);
-
-        //     this.tokenToSetname.set(token, setName);
-
-        //     const dataPurgeTokens = this.setnameToToken.get(setName) || [];
-        //     dataPurgeTokens.push(token);
-        //     this.setnameToToken.set(setName, dataPurgeTokens);
-
-        //     this.sets.delete(nameOrToken);
-        //     this.sets.set(token, purgedSS);
-
-        //     returnObject.data.set(token, returnSetData);
-        //     counter++;
-        // };
-
-        // return Promise.resolve(returnObject);
-        throw new Error("Method not implemented.");
+    async purgeBegin(lastUpsertElapsedTimeInSeconds: number | null, maximumCountThreshold: number | null, maximumBytesThreshold: bigint | null, pendingSortedSetsTimeoutInSeconds: number = 3600, maxSortedSetsToRetrive: number = 10): Promise<IError<Map<string, ISortedStringData[]>>> {
+        const returnObject: IError<Map<string, Array<ISortedStringData>>> = { data: new Map<string, Array<ISortedStringData>>(), error: undefined };
+        const client = await this.redisClientResolver(Operation.Script);
+        try {
+            const keys: string[] = [this.pendingSetKey, this.activityKey, this.countKey, this.bytesKey, this.tokenToSetName];
+            const args: string[] = [pendingSortedSetsTimeoutInSeconds.toFixed(0),
+            lastUpsertElapsedTimeInSeconds == null ? 'nil' : lastUpsertElapsedTimeInSeconds.toFixed(0),
+            maxSortedSetsToRetrive.toFixed(0),
+            maximumCountThreshold == null ? 'nil' : maximumCountThreshold.toFixed(0),
+            maximumBytesThreshold == null ? 'nil' : maximumBytesThreshold.toString(),
+            this.purgeKeyAppend, this.setnamesToTokensKeyAppend, this.keyPrefix];
+            const results = await client.script(path.join(__dirname, 'purge-begin.lua'), keys, args) as Array<Array<string | Array<string>>>;
+            results.forEach(m => {
+                const token = m[0] as string;
+                const setName = m[1] as string;
+                const newData = m[2] as Array<string>;
+                // console.log(token)
+                // console.log(setName)
+                // console.log(newData)
+                const existingData = returnObject.data.get(token) || new Array<ISortedStringData>();
+                for (let index = 0; index < newData.length; index += 2) {
+                    const member = newData[index];
+                    const score = newData[index + 1];
+                    // console.log(member)
+                    // console.log(BigInt(score))
+                    existingData.push({ score: BigInt(score), setName: setName, payload: member });
+                }
+                returnObject.data.set(token, existingData);
+            });
+        }
+        finally {
+            await client.release();
+        }
+        return returnObject;
     }
 
-    purgeEnd(tokens: string[]): Promise<IBulkResponse<string[], IError<string>[]>> {
-        throw new Error("Method not implemented.");
+    async purgeEnd(tokens: string[]): Promise<IBulkResponse<string[], IError<string>[]>> {
+        const returnObject = { succeeded: new Array<string>(), failed: new Array<IError<string>>() };
+        const client = await this.redisClientResolver(Operation.Script);
+        try {
+            for (let index = 0; index < tokens.length; index++) {
+                const token = tokens[index];
+                const keys: string[] = [this.pendingSetKey, this.tokenToSetName];
+                const args: string[] = [this.setnamesToTokensKeyAppend, this.keyPrefix, token];
+                const result = await client.script(path.join(__dirname, 'purge-end.lua'), keys, args) as number;
+                if (result === 1) {
+                    returnObject.succeeded.push(token);
+                }
+                else {
+                    const err = new Error(`Token "${token}" doesnot exists.`);
+                    err.stack = "Redis return code " + result;
+                    returnObject.failed.push({ error: err, data: token });
+                }
+            }
+        }
+        finally {
+            await client.release();
+        }
+        return returnObject;
     }
 }
 
 export enum Operation {
     Read,
     Write,
-    ReadNWrite
+    ReadNWrite,
+    Script
 }

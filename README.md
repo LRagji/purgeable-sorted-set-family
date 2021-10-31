@@ -29,9 +29,8 @@ W.I.P(Not released yet)
 This project is contrubution to public domain and completely free for use, view [LICENSE.md](/license.md) file for details.
 
 ## Pre-requisite
-1. When using horizontal scalling it is very important to synchronise time between shards via NTP.
-2. [FOR BUILD ONLY] For windows only needs node gyp with [Visual Studio Build Tools](https://github.com/nodejs/node-gyp) with [Python](https://www.python.org/downloads/)
-3. [FOR TEST/BUILD ONLY] Docker with local redis image.
+1. Remote-PSSF is not suitable for redis cluster setup as it uses dynamic keys in redis scripts, but can be used with shards for different instances.
+2. [FOR TEST/BUILD ONLY] Docker with local redis image.
 
 ## Local Build
 1. `npm install`

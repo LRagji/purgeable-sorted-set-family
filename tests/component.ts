@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { IPurgeableSortedSetFamily, IRedisClient, ISortedStringData, LocalPSSF, RemotePSSF } from '../source/index';
+import { IPurgeableSortedSetFamily, IRedisClient, ISortedStringData, LocalPSSF, RemotePSSF } from '../dist/index';
 import { RedisClient } from './redis-client'
 const purgeName = "Pur";
 let client: IRedisClient;
@@ -318,14 +318,14 @@ runs.forEach(function (run) {
             //Setup
             const target = run.testTarget();
             const data = new Array<ISortedStringData>();
-            data.push({ score: 1n, payload: "A", setName: "Laukik", bytes: 1n });
-            data.push({ score: 2n, payload: "B", setName: "Laukik", bytes: 1n });
-            data.push({ score: 3n, payload: "C", setName: "Laukik", bytes: 1n });
+            data.push({ score: 1n, payload: "A", setName: "Laukik", bytes: 100n });
+            data.push({ score: 2n, payload: "B", setName: "Laukik", bytes: 13n });
+            data.push({ score: 3n, payload: "C", setName: "Laukik", bytes: 30n });
             data.push({ score: 1n, payload: "A", setName: "small", bytes: 1n });
 
             //Test
             const setResult = await target.upsert(data);
-            const purgeResult = await target.purgeBegin(null, null, 3n);
+            const purgeResult = await target.purgeBegin(null, null, 140n);
 
             //Verify
             assert.deepStrictEqual(setResult.failed.length, 0);
@@ -564,7 +564,7 @@ runs.forEach(function (run) {
 
             //Test
             const setResult = await target.upsert(data);
-            const purgeResult = await target.purgeBegin(null, null, 3n);
+            const purgeResult = await target.purgeBegin(null, 3, null);
             const readData = await target.scoreRangeQuery("Laukik", 1n, 100n);
 
             //Verify
@@ -590,7 +590,7 @@ runs.forEach(function (run) {
 
             //Test
             const setResult = await target.upsert(data);
-            const purgeResult = await target.purgeBegin(null, null, 3n);
+            const purgeResult = await target.purgeBegin(null, 3, null);
             const purgeCompleted = await target.purgeEnd(["Laukik" + purgeName]);
             const readData = await target.scoreRangeQuery("Laukik", 1n, 100n);
 
@@ -659,16 +659,16 @@ runs.forEach(function (run) {
             //Setup
             const target = run.testTarget();
             const data = new Array<ISortedStringData>();
-            data.push({ score: 1n, payload: "A", setName: "Laukik", bytes: 1n });
-            data.push({ score: 2n, payload: "B", setName: "Laukik", bytes: 1n });
-            data.push({ score: 3n, payload: "C", setName: "Laukik", bytes: 1n });
+            data.push({ score: 1n, payload: "A", setName: "Laukik", bytes: 100n });
+            data.push({ score: 2n, payload: "B", setName: "Laukik", bytes: 30n });
+            data.push({ score: 3n, payload: "C", setName: "Laukik", bytes: 10n });
             data.push({ score: 1n, payload: "A", setName: "small", bytes: 1n });
             const updateData = new Array<ISortedStringData>();
             updateData.push({ score: 53n, payload: "A", setName: "Laukik", bytes: 1n });
 
             //Test
             const setResult = await target.upsert(data);
-            const purgeResult = await target.purgeBegin(null, null, 3n);
+            const purgeResult = await target.purgeBegin(null, 3, null);
             const updateResult = await target.upsert(updateData);
             const readData = await target.scoreRangeQuery("Laukik", 1n, 100n);
 
@@ -698,11 +698,11 @@ runs.forEach(function (run) {
 
             //Test
             const setResult = await target.upsert(data);
-            const purgeResult1 = await target.purgeBegin(null, null, 3n);
+            const purgeResult1 = await target.purgeBegin(null, 3, null);
             const updateResult = await target.upsert(updateData);
             const purgeCompletedResult1 = await target.purgeEnd(["Laukik" + purgeName]);
             const readData1 = await target.scoreRangeQuery("Laukik", 1n, 100n);
-            const purgeResult2 = await target.purgeBegin(null, null, 1n);
+            const purgeResult2 = await target.purgeBegin(null, 1, null);
             const purgeCompletedResult2 = await target.purgeEnd(["Laukik" + purgeName]);
             const readData2 = await target.scoreRangeQuery("Laukik", 1n, 100n);
 
