@@ -2,7 +2,7 @@ import { IBulkResponse, IError, IPurgeableSortedSetFamily, ISortedStringData } f
 import dimensionalHelper from "@stdlib/ndarray";
 import Crypto from "crypto";
 
-export class NDimensionalSharedPartitionedSortedSet {
+export class NDimensionalPartitionedSortedSet {
     private partitionShape: bigint[];
     private partitionNameSeperator: string;
     private partitionShapeInteger: number[];
@@ -82,4 +82,87 @@ export interface IDimentionalData {
 export interface IPatitionDetails {
     name: string,
     startDimensions: bigint[]
+}
+
+export class Absolute {
+
+    private max = (...args: bigint[]) => args.reduce((m, e) => e > m ? e : m);
+
+    private min = (...args: bigint[]) => args.reduce((m, e) => e < m ? e : m);
+
+    private frameStart(value: bigint, frameLength: bigint): bigint {
+        return value - (value % frameLength);
+    }
+
+    private subsequentFrameStart(value: bigint, frameLength: bigint): bigint {
+        return this.frameStart(value, frameLength) + frameLength;
+    }
+
+    private frameEnd(value: bigint, frameLength: bigint): bigint {
+        return this.frameStart(value, frameLength) + (frameLength - 1n);
+    }
+
+    private async forLoop(start: bigint[], end: bigint[], stride: bigint[], callback: (iterator: bigint[], start: bigint[], end: bigint[], stride: bigint[]) => Promise<boolean>): Promise<void> {
+        const lsd = 0;
+        stride.forEach((e, idx) => {
+            if (e <= 0) {
+                throw new Error(`Stride has to be positive & non zero quantity. ${e} @Index:${idx}`);
+            }
+        });
+        end.forEach((e, idx) => {
+            if (e < start[idx]) {
+                throw new Error(`Start dimension ${start[idx]} @Index:${idx} has to be smaller than end dimension ${e}`);
+            }
+        });
+        let counter = Array.from(start);
+        let overflow = false;
+        let watchDog = BigInt(start.map((e, idx) => end[idx] - e).reduce((acc, e) => (e + 1n) * acc, 1n));
+        let cancelled = false;
+        do {
+            while (counter[lsd] <= end[lsd] && watchDog >= BigInt(0) && cancelled === false) {
+                cancelled = await callback(Array.from(counter), start, end, stride) || false;
+                const nextVal = this.min(this.subsequentFrameStart(counter[lsd], stride[lsd]), end[lsd]);
+                counter[lsd] = end[lsd] - counter[lsd] === 0n ? (counter[lsd] + 1n) : nextVal;
+                watchDog--;
+                if (watchDog < BigInt(0)) {
+                    throw new Error("Navigation failed, Infinite Loop detected!!");
+                }
+            }
+            for (let idx = 0; idx < counter.length; idx++) {
+                if (!(counter[idx] <= end[idx])) {
+                    if ((idx + 1) >= counter.length) {
+                        overflow = true;
+                    }
+                    else {
+                        counter[idx] = start[idx];
+                        const nextVal = this.min(this.subsequentFrameStart(counter[idx + 1], stride[idx + 1]), end[idx + 1]);
+                        counter[idx + 1] = end[idx + 1] - counter[idx + 1] === 0n ? (counter[idx + 1] + 1n) : nextVal;
+                    }
+                }
+            };
+        }
+        while (overflow === false && watchDog >= BigInt(0) && cancelled === false)
+    };
+
+    async partitionedRanges(rangeStart: bigint[], rangeEnd: bigint[], rangeStrides: bigint[], partitionNameResolver: (vector: bigint[]) => string = (v) => v.join(",")): Promise<Map<string, bigint[][]>> {
+        let ranges = new Map<string, bigint[][]>();
+        await this.forLoop(rangeStart, rangeEnd, rangeStrides, (counter, start, end, stride) => {
+            const frameStart = counter.map((e, idx) => this.frameStart(e, stride[idx]));
+            const partitionName = partitionNameResolver(frameStart);
+            const existingRange = ranges.get(partitionName) || [];
+            if (existingRange.length === 0) {
+                existingRange.push(counter);
+                const endVector = counter.map((e, idx) => this.frameEnd(e, stride[idx]));
+                existingRange.push(endVector);
+            }
+            else {
+                const endVectorOrMaxVector = existingRange.pop() || [];
+                const newVector = endVectorOrMaxVector.map((e, i) => this.min(this.max(this.frameEnd(e, stride[i]), counter[i], e), end[i]));
+                existingRange.push(newVector);
+            }
+            ranges.set(partitionName, existingRange);
+            return Promise.resolve(true);
+        });
+        return ranges;
+    }
 }
