@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import { IPurgeableSortedSetFamily, IRedisClient, ISortedStringData, LocalPSSF, RemotePSSF } from '../dist/index';
-import { RedisClient } from './redis-client'
+import { RedisClient } from './utilities/redis-client'
 const purgeName = "Pur";
 let client: IRedisClient;
 var runs = [

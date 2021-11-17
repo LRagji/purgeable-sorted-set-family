@@ -1,4 +1,4 @@
-import { IRedisClient } from '../source/index';
+import { IRedisClient } from '../../source/index';
 import ioredis from 'ioredis';
 import fs from 'fs';
 import Crypto from "crypto";
@@ -10,13 +10,16 @@ export class RedisClient implements IRedisClient {
     constructor(redisConnectionString: string) {
         this.redisClient = new ioredis(redisConnectionString);
     }
+
     async shutdown(): Promise<void> {
         await this.redisClient.quit();
         this.redisClient.disconnect();
     }
+
     async acquire(token: string): Promise<void> {
         //console.time(token);
     }
+
     async release(token: string): Promise<void> {
         //console.timeEnd(token);
     }
