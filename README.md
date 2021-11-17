@@ -32,7 +32,7 @@ More examples with component [tests](https://github.com/LRagji/purgeable-sorted-
 ## Built with
 1. Authors :heart: for Open Source.
 2. [redis-sorted-set](https://www.npmjs.com/package/redis-sorted-set) for handling local skip list implementation of sorted set.
-3. [sorted-array-functions](https://www.npmjs.com/package/sorted-array-functions) for handling ordered array operations on local implementation.
+3. [sorted-array-functions](https://www.npmjs.com/package/sorted-array-functions) for handling sorted array operations.
 
 ## Contributions
 1. New ideas/techniques are welcomed.

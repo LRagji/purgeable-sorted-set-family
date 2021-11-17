@@ -1,6 +1,7 @@
 import { IBulkResponse, IError, IPurgeableSortedSetFamily, ISortedStringData } from "./index";
 import dimensionalHelper from "@stdlib/ndarray";
 import Crypto from "crypto";
+import * as sortingHelper from "sorted-array-functions"
 
 export class NDimensionalPartitionedSortedSet {
     private partitionShape: bigint[];
@@ -8,6 +9,7 @@ export class NDimensionalPartitionedSortedSet {
     private partitionShapeInteger: number[];
     private shardResolver: (details: IPatitionDetails) => IPurgeableSortedSetFamily<ISortedStringData>;
     private settingsHash: string;
+    private nDimensionCompareFunction = (end: number[]) => ((lhs: IDimentionalData, rhs: IDimentionalData) => <1 | 0 | -1>Math.min(Math.max(parseInt((dimensionalHelper.sub2ind(end, ...lhs.dimensions.map(e => parseInt(e.toString())), { order: 'row-major' }) - dimensionalHelper.sub2ind(end, ...rhs.dimensions.map(e => parseInt(e.toString())), { order: 'row-major' })).toString()), -1), 1));
 
     constructor(partitionShape: bigint[], shardResolver: (details: IPatitionDetails) => IPurgeableSortedSetFamily<ISortedStringData>, partitionNameSeperator = '-') {
         if (partitionShape.length === 0) {
@@ -60,8 +62,46 @@ export class NDimensionalPartitionedSortedSet {
         return returnObject;
     }
 
-    rangeRead(start: Array<bigint>, end: Array<bigint>): Promise<IError<IDimentionalData[]>> {
-        throw new Error("Not implmented");
+    async rangeRead(start: Array<bigint>, end: Array<bigint>): Promise<IError<IDimentionalData[]>> {
+        const returnObject: IError<IDimentionalData[]> = { data: new Array<IDimentionalData>(), error: undefined };
+        const ranges = await Absolute.partitionedRanges(start, end, this.partitionShape);
+        const processingHandles: Promise<IDimentionalData[]>[] = [];
+        ranges.forEach((range, partitionStart) => processingHandles.push(this.readParitionRange(partitionStart, range[0], range[1])));
+        const rawData = await Promise.allSettled(processingHandles);
+        let errorString = "";
+        returnObject.data = rawData.reduce((acc, rData) => {
+            if (rData.status === "fulfilled") {
+                rData.value.forEach(v => sortingHelper.add(acc, v, this.nDimensionCompareFunction(end.map(e => parseInt(e.toString())))));
+            }
+            else {
+                errorString += rData.reason.message;
+            }
+            return acc;
+        }, returnObject.data);
+
+        if (errorString != "") {
+            returnObject.error = new Error(errorString);
+        }
+
+        return returnObject;
+    }
+
+    private async readParitionRange(partitionStart: bigint[], start: bigint[], end: bigint[]): Promise<IDimentionalData[]> {
+        const localStart = BigInt(dimensionalHelper.sub2ind(this.partitionShapeInteger, ...start.map((e, idx) => parseInt((e - partitionStart[idx]).toString())), { order: 'row-major' }));
+        const localEnd = BigInt(dimensionalHelper.sub2ind(this.partitionShapeInteger, ...end.map((e, idx) => parseInt((e - partitionStart[idx]).toString())), { order: 'row-major' }));
+        const partitionName = this.partitionNameBuilder(partitionStart);
+        const shard = await this.shardResolver({ name: partitionName, startDimensions: partitionStart });
+        const result = await shard.scoreRangeQuery(partitionName, localStart, localEnd);
+        if (result.error != undefined) {
+            throw result.error;
+        }
+        return result.data.map(e => {
+            return {
+                "dimensions": dimensionalHelper.ind2sub(this.partitionShapeInteger, parseInt(e.score.toString()), { order: 'row-major' }).map((e, idx) => partitionStart[idx] + BigInt(e)),
+                "payload": e.payload,
+                "bytes": e.bytes
+            }
+        });
     }
 
     private partitionNameBuilder(partitionStart: bigint[]): string {
@@ -84,25 +124,25 @@ export interface IPatitionDetails {
     startDimensions: bigint[]
 }
 
-export class Absolute {
+class Absolute {
 
-    private max = (...args: bigint[]) => args.reduce((m, e) => e > m ? e : m);
+    private static max = (...args: bigint[]) => args.reduce((m, e) => e > m ? e : m);
 
-    private min = (...args: bigint[]) => args.reduce((m, e) => e < m ? e : m);
+    private static min = (...args: bigint[]) => args.reduce((m, e) => e < m ? e : m);
 
-    private frameStart(value: bigint, frameLength: bigint): bigint {
+    private static frameStart(value: bigint, frameLength: bigint): bigint {
         return value - (value % frameLength);
     }
 
-    private subsequentFrameStart(value: bigint, frameLength: bigint): bigint {
+    private static subsequentFrameStart(value: bigint, frameLength: bigint): bigint {
         return this.frameStart(value, frameLength) + frameLength;
     }
 
-    private frameEnd(value: bigint, frameLength: bigint): bigint {
+    private static frameEnd(value: bigint, frameLength: bigint): bigint {
         return this.frameStart(value, frameLength) + (frameLength - 1n);
     }
 
-    private async forLoop(start: bigint[], end: bigint[], stride: bigint[], callback: (iterator: bigint[], start: bigint[], end: bigint[], stride: bigint[]) => Promise<boolean>): Promise<void> {
+    private static async forLoop(start: bigint[], end: bigint[], stride: bigint[], callback: (iterator: bigint[], start: bigint[], end: bigint[], stride: bigint[]) => Promise<boolean>): Promise<void> {
         const lsd = 0;
         stride.forEach((e, idx) => {
             if (e <= 0) {
@@ -144,11 +184,13 @@ export class Absolute {
         while (overflow === false && watchDog >= BigInt(0) && cancelled === false)
     };
 
-    async partitionedRanges(rangeStart: bigint[], rangeEnd: bigint[], rangeStrides: bigint[], partitionNameResolver: (vector: bigint[]) => string = (v) => v.join(",")): Promise<Map<string, bigint[][]>> {
+    static async partitionedRanges(rangeStart: bigint[], rangeEnd: bigint[], rangeStrides: bigint[]): Promise<Map<bigint[], bigint[][]>> {
         let ranges = new Map<string, bigint[][]>();
+        const partitionNameConverter: (vector: bigint[]) => string = (v) => v.join(",");
+        const partitionNameUnConverter: (partitionName: string) => bigint[] = (pn) => pn.split(",").map(e => BigInt(e));
         await this.forLoop(rangeStart, rangeEnd, rangeStrides, (counter, start, end, stride) => {
             const frameStart = counter.map((e, idx) => this.frameStart(e, stride[idx]));
-            const partitionName = partitionNameResolver(frameStart);
+            const partitionName = partitionNameConverter(frameStart);
             const existingRange = ranges.get(partitionName) || [];
             if (existingRange.length === 0) {
                 existingRange.push(counter);
@@ -163,6 +205,8 @@ export class Absolute {
             ranges.set(partitionName, existingRange);
             return Promise.resolve(true);
         });
-        return ranges;
+        const returnObject = new Map<bigint[], bigint[][]>();
+        ranges.forEach((v, k) => returnObject.set(partitionNameUnConverter(k), v));
+        return returnObject;
     }
 }
