@@ -4,5 +4,6 @@ import { IPurgeableSortedSetFamily, ISortedStringData } from "./i-purgeable-sort
 import { LocalPSSF } from "./local-pssf";
 import { RemotePSSF } from "./remote-pssf";
 import { IRedisClient } from "./i-redis-client";
+import { NDimensionalPartitionedSortedSet } from "./n-dimension-partitioned-sorted-set";
 
-export { IError, IBulkResponse, IPurgeableSortedSetFamily, LocalPSSF, ISortedStringData, RemotePSSF, IRedisClient }
+export { IError, IBulkResponse, IPurgeableSortedSetFamily, LocalPSSF, ISortedStringData, RemotePSSF, IRedisClient, NDimensionalPartitionedSortedSet }
