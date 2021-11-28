@@ -9,7 +9,7 @@ export class NDimensionalPartitionedSortedSet {
     private partitionShapeInteger: number[];
     private shardResolver: (details: IPatitionDetails) => IPurgeableSortedSetFamily<ISortedStringData>;
     private settingsHash: string;
-    private nDimensionCompareFunction = (end: number[]) => ((lhs: IDimentionalData, rhs: IDimentionalData) => <1 | 0 | -1>Math.min(Math.max(parseInt((dimensionalHelper.sub2ind(end, ...lhs.dimensions.map(e => parseInt(e.toString())), { order: 'row-major' }) - dimensionalHelper.sub2ind(end, ...rhs.dimensions.map(e => parseInt(e.toString())), { order: 'row-major' })).toString()), -1), 1));
+    private nDimensionCompareFunction = (end: number[]) => ((lhs: IDimentionalData, rhs: IDimentionalData) => <1 | 0 | -1>Math.min(Math.max(parseInt((this.dimensionToLinearIndex(lhs.dimensions, end) - this.dimensionToLinearIndex(rhs.dimensions, end)).toString()), -1), 1));
 
     constructor(partitionShape: bigint[], shardResolver: (details: IPatitionDetails) => IPurgeableSortedSetFamily<ISortedStringData>, partitionNameSeperator = '-') {
         if (partitionShape.length === 0) {
@@ -34,7 +34,7 @@ export class NDimensionalPartitionedSortedSet {
                 const partitionStart = this.partitionShape.map((ps, psIdx) => element.dimensions[psIdx] - (element.dimensions[psIdx] % ps));
                 const partitionName = this.partitionNameBuilder(partitionStart);
                 const relativeDimensions = partitionStart.map((ps, psIdx) => element.dimensions[psIdx] - ps);
-                const score = BigInt(dimensionalHelper.sub2ind(this.partitionShapeInteger, ...relativeDimensions.map(e => parseInt(e.toString())), { order: 'row-major' }));
+                const score = this.dimensionToLinearIndex(relativeDimensions);
                 const existingData = partitionData.get(partitionName) || { data: new Array<ISortedStringData>(), partitiondetails: { name: partitionName, startDimensions: partitionStart }, rawData: new Array<IDimentionalData>() };
                 existingData.data.push({ score: score, setName: partitionName, payload: element.payload, bytes: element.bytes });
                 existingData.rawData.push(element);
@@ -87,8 +87,9 @@ export class NDimensionalPartitionedSortedSet {
     }
 
     private async readParitionRange(partitionStart: bigint[], start: bigint[], end: bigint[]): Promise<IDimentionalData[]> {
-        const localStart = BigInt(dimensionalHelper.sub2ind(this.partitionShapeInteger, ...start.map((e, idx) => parseInt((e - partitionStart[idx]).toString())), { order: 'row-major' }));
-        const localEnd = BigInt(dimensionalHelper.sub2ind(this.partitionShapeInteger, ...end.map((e, idx) => parseInt((e - partitionStart[idx]).toString())), { order: 'row-major' }));
+        const relativePositionMapResolver = (e: bigint, idx: number) => e - partitionStart[idx];
+        const localStart = this.dimensionToLinearIndex(start.map(relativePositionMapResolver));
+        const localEnd = this.dimensionToLinearIndex(end.map(relativePositionMapResolver));
         const partitionName = this.partitionNameBuilder(partitionStart);
         const shard = await this.shardResolver({ name: partitionName, startDimensions: partitionStart });
         const result = await shard.scoreRangeQuery(partitionName, localStart, localEnd);
@@ -119,6 +120,11 @@ export class NDimensionalPartitionedSortedSet {
 
     private objectHash(settings: object): string {
         return Crypto.createHash("sha256").update(JSON.stringify(settings), "binary").digest("hex");
+    }
+
+    private dimensionToLinearIndex(dimensions: bigint[], shape: number[] = this.partitionShapeInteger): bigint {
+        const indexInteger = dimensionalHelper.sub2ind(shape, ...dimensions.map(e => parseInt(e.toString())), { order: 'row-major' });
+        return BigInt(indexInteger);
     }
 }
 
