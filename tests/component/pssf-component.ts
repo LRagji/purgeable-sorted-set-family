@@ -4,8 +4,8 @@ import { RedisClient } from '../utilities/redis-client'
 const purgeName = "Pur";
 let client: IRedisClient;
 var runs = [
-    { testTarget: (purkeyKey = purgeName): IPurgeableSortedSetFamily<ISortedStringData> => new LocalPSSF(purkeyKey), type: "Local" },
-    { testTarget: createRemotePsff, type: "Remote" },
+    { testTarget: (purkeyKey = purgeName): IPurgeableSortedSetFamily<ISortedStringData> => new LocalPSSF(purkeyKey), type: "PSSF Local" },
+    { testTarget: createRemotePsff, type: "PSSF Remote" },
 ];
 
 runs.forEach(function (run) {
