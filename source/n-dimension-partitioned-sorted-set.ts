@@ -96,10 +96,19 @@ export class NDimensionalPartitionedSortedSet {
             throw result.error;
         }
         return result.data.map(e => {
-            return {
-                "dimensions": dimensionalHelper.ind2sub(this.partitionShapeInteger, parseInt(e.score.toString()), { order: 'row-major' }).map((e, idx) => partitionStart[idx] + BigInt(e)),
-                "payload": e.payload,
-                "bytes": e.bytes
+            const calculatedDimensions = dimensionalHelper.ind2sub(this.partitionShapeInteger, parseInt(e.score.toString()), { order: 'row-major' }).map((e, idx) => partitionStart[idx] + BigInt(e));
+            if (e.bytes == undefined) {
+                return {
+                    "dimensions": calculatedDimensions,
+                    "payload": e.payload,
+                };
+            }
+            else {
+                return {
+                    "dimensions": calculatedDimensions,
+                    "payload": e.payload,
+                    "bytes": e.bytes
+                };
             }
         });
     }
@@ -203,7 +212,7 @@ class Absolute {
                 existingRange.push(newVector);
             }
             ranges.set(partitionName, existingRange);
-            return Promise.resolve(true);
+            return Promise.resolve(false);
         });
         const returnObject = new Map<bigint[], bigint[][]>();
         ranges.forEach((v, k) => returnObject.set(partitionNameUnConverter(k), v));

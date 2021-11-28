@@ -1,11 +1,12 @@
 import * as assert from 'assert';
 import { IPurgeableSortedSetFamily, IRedisClient, ISortedStringData, LocalPSSF, RemotePSSF, NDimensionalPartitionedSortedSet } from '../../dist/index';
+import { IDimentionalData } from '../../dist/n-dimension-partitioned-sorted-set';
 import { RedisClient } from '../utilities/redis-client'
 const purgeName = "Pur";
 let client: IRedisClient;
 var runs = [
-    { testTarget: (purkeyKey = purgeName): IPurgeableSortedSetFamily<ISortedStringData> => new LocalPSSF(purkeyKey), type: "NPSS Local" },
-    { testTarget: createRemotePsff, type: "NSPPS Remote" },
+    { createPSSF: (purkeyKey = purgeName): IPurgeableSortedSetFamily<ISortedStringData> => new LocalPSSF(purkeyKey), type: "NPSS Local" },
+    { createPSSF: createRemotePsff, type: "NSPPS Remote" },
 ];
 
 runs.forEach(function (run) {
@@ -22,15 +23,16 @@ runs.forEach(function (run) {
 
         it('should be able to upsert and get string data', async () => {
             //Setup
-            const target = run.testTarget();
-            const data = new Array<ISortedStringData>();
-            data.push({ score: 1n, payload: "A", setName: "Laukik", bytes: 1n });
-            data.push({ score: 2n, payload: "B", setName: "Laukik", bytes: 1n });
-            data.push({ score: 3n, payload: "C", setName: "Laukik", bytes: 1n });
+            const testShard = run.createPSSF();
+            const target = new NDimensionalPartitionedSortedSet([10n, 10n, 10n], (details) => testShard);
+            const data = new Array<IDimentionalData>();
+            data.push({ dimensions: [1n, 0n, 0n], payload: "A", bytes: 1n });
+            data.push({ dimensions: [11n, 0n, 0n], payload: "B", bytes: 1n });
+            data.push({ dimensions: [21n, 0n, 0n], payload: "C", bytes: 1n });
 
             //Test
-            const setResult = await target.upsert(data);
-            const rangeResult = await target.scoreRangeQuery("Laukik", 1n, 3n);
+            const setResult = await target.write(data);
+            const rangeResult = await target.rangeRead([0n, 0n, 0n], [100n, 100n, 100n]);
 
             //Verify
             assert.deepStrictEqual(setResult.failed.length, 0);
