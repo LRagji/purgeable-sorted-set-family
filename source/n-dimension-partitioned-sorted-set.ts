@@ -97,7 +97,7 @@ export class NDimensionalPartitionedSortedSet {
             throw result.error;
         }
         return result.data.map(e => {
-            const calculatedDimensions = dimensionalHelper.ind2sub(this.partitionShapeInteger, parseInt(e.score.toString()), { order: 'row-major' }).map((e, idx) => partitionStart[idx] + BigInt(e));
+            const calculatedDimensions = this.linearIndexToDimension(e.score).map((e, idx) => partitionStart[idx] + e);
             if (e.bytes == undefined) {
                 return {
                     "dimensions": calculatedDimensions,
@@ -123,8 +123,12 @@ export class NDimensionalPartitionedSortedSet {
     }
 
     private dimensionToLinearIndex(dimensions: bigint[], shape: number[] = this.partitionShapeInteger): bigint {
-        const indexInteger = dimensionalHelper.sub2ind(shape, ...dimensions.map(e => parseInt(e.toString())), { order: 'row-major' });
+        const indexInteger = dimensionalHelper.sub2ind(shape, ...dimensions.map(e => parseInt(e.toString())), { order: 'column-major' });
         return BigInt(indexInteger);
+    }
+
+    private linearIndexToDimension(linearIndex: bigint, shape: number[] = this.partitionShapeInteger): bigint[] {
+        return dimensionalHelper.ind2sub(shape, parseInt(linearIndex.toString()), { order: 'column-major' }).map(e => BigInt(e));
     }
 }
 
