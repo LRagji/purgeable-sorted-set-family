@@ -62,9 +62,9 @@ export class NDimensionalPartitionedSortedSet {
         return returnObject;
     }
 
-    async rangeRead(start: Array<bigint>, end: Array<bigint>): Promise<IError<IDimentionalData[]>> {
+    async rangeRead(start: Array<bigint>, end: Array<bigint>, maxRanges: number = -1): Promise<IError<IDimentionalData[]>> {
         const returnObject: IError<IDimentionalData[]> = { data: new Array<IDimentionalData>(), error: undefined };
-        const ranges = await Absolute.partitionedRanges(start, end, this.partitionShape);
+        const ranges = await Absolute.partitionedRanges(start, end, this.partitionShape, maxRanges);
         const processingHandles: Promise<IDimentionalData[]>[] = [];
         ranges.forEach((range, partitionStart) => processingHandles.push(this.readParitionRange(partitionStart, range[0], range[1])));
         const rawData = await Promise.allSettled(processingHandles);
@@ -204,7 +204,7 @@ class Absolute {
         while (overflow === false && watchDog >= BigInt(0) && cancelled === false)
     };
 
-    static async partitionedRanges(rangeStart: bigint[], rangeEnd: bigint[], rangeStrides: bigint[]): Promise<Map<bigint[], bigint[][]>> {
+    static async partitionedRanges(rangeStart: bigint[], rangeEnd: bigint[], rangeStrides: bigint[], maxNumberOfPartitions: number = -1): Promise<Map<bigint[], bigint[][]>> {
         let ranges = new Map<string, bigint[][]>();
         const partitionNameConverter: (vector: bigint[]) => string = (v) => v.join(",");
         const partitionNameUnConverter: (partitionName: string) => bigint[] = (pn) => pn.split(",").map(e => BigInt(e));
@@ -223,7 +223,7 @@ class Absolute {
                 existingRange.push(newVector);
             }
             ranges.set(partitionName, existingRange);
-            return Promise.resolve(false);
+            return Promise.resolve(ranges.size === maxNumberOfPartitions);
         });
         const returnObject = new Map<bigint[], bigint[][]>();
         ranges.forEach((v, k) => returnObject.set(partitionNameUnConverter(k), v));
