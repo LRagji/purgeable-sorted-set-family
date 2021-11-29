@@ -15,10 +15,11 @@
     "clean-build:windows": "rmdir /s /q .\\dist\\",
     "test-run": "nyc --reporter=html --reporter=text mocha -r ts-node/register ./tests/**/*.ts",
     "test": "npm run build && npm run redisstart && cross-env REDISCON=redis://127.0.0.1:6379 npm run test-run",
-    "build": "(npm run clean-build || node -v) && tsc && npm run copy-files",
+    "build": "(npm run clean-build || node -v) && tsc && npm run copy-files && npm run docs",
     "redisstop": "docker stop TestCentralStore && ping 127.0.0.1 -c 3",
     "redisstart": "(npm run redisstop || docker -v ) && docker run --name TestCentralStore -p 6379:6379 -itd --rm redis:latest",
-    "push": "npm test && npm version patch && cd ./dist && npm publish"
+    "push": "npm test && npm version patch && cd ./dist && npm publish",
+    "docs": "typedoc"
   },
   "repository": {
     "type": "git",
@@ -48,6 +49,7 @@
     "nyc": "^15.1.0",
     "run-script-os": "^1.1.6",
     "ts-node": "^10.4.0",
+    "typedoc": "^0.22.10",
     "typescript": "^4.4.4"
   },
   "dependencies": {
