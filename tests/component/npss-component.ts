@@ -96,248 +96,27 @@ runs.forEach(function (run) {
             assert.deepStrictEqual(rangeResult.data, [readData[0], readData[1], readData[4], readData[3]]);
         });
 
-        // it('should not let setname end with purge key', async () => {
-        //     //Setup
-        //     const target = run.testTarget();
-        //     const data = new Array<ISortedStringData>();
-        //     data.push({ score: 1n, payload: "A", setName: "Laukik" + purgeName, bytes: 1n });
-        //     data.push({ score: 2n, payload: "B", setName: "Laukik", bytes: 1n });
-        //     data.push({ score: 3n, payload: "C", setName: "Laukik", bytes: 1n });
+        it('query range should be inclusive in range.', async () => {
+            //Setup
+            const testShard = run.createPSSF();
+            const target = new NDimensionalPartitionedSortedSet([10n, 10n, 10n], (details) => testShard);
+            const data = new Array<IDimentionalData>();
+            data.push({ dimensions: [1n, 0n, 0n], payload: "A", bytes: 1n });
+            data.push({ dimensions: [11n, 0n, 0n], payload: "B", bytes: 1n });
+            data.push({ dimensions: [21n, 0n, 0n], payload: "C", bytes: 1n });
 
-        //     //Test
-        //     const setResult = await target.upsert(data);
-        //     const rangeResult = await target.scoreRangeQuery("Laukik", 1n, 3n);
+            //Test
+            const setResult = await target.write(data);
+            const rangeResult = await target.rangeRead([11n, 0n, 0n], [21n, 0n, 0n]);
 
-        //     //Verify
-        //     assert.deepStrictEqual(setResult.failed.length, 1);
-        //     assert.deepStrictEqual(setResult.failed[0].error?.message, `Setname "LaukikPur" cannot end with system reserved key "Pur".`);
-        //     assert.deepStrictEqual(setResult.failed[0].data, data[0]);
-        //     assert.deepStrictEqual(setResult.succeeded, [data[1], data[2]].map(e => { delete e.bytes; return e; }));
-        //     assert.deepStrictEqual(rangeResult.error, undefined);
-        //     assert.deepStrictEqual(rangeResult.data, [data[1], data[2]].map(e => { delete e.bytes; return e; }));
-        // });
+            //Verify
+            assert.deepStrictEqual(setResult.failed.length, 0);
+            assert.deepStrictEqual(setResult.succeeded, data);
+            assert.deepStrictEqual(rangeResult.error, undefined);
+            const readData = data.map(e => { delete e.bytes; return e });
+            assert.deepStrictEqual(rangeResult.data, [readData[1], readData[2]]);
+        });
 
-        // it('should be able to upsert and get updated data', async () => {
-        //     //Setup
-        //     const target = run.testTarget();
-        //     const data = new Array<ISortedStringData>();
-        //     data.push({ score: 1n, payload: "A", setName: "Laukik", bytes: 1n });
-        //     data.push({ score: 2n, payload: "B", setName: "Laukik", bytes: 1n });
-        //     data.push({ score: 3n, payload: "C", setName: "Laukik", bytes: 1n });
-
-        //     //Test
-        //     const setResult1 = await target.upsert(data);
-        //     data.push({ score: 4n, payload: "D", setName: "Laukik", bytes: 1n });
-        //     data.push({ score: 5n, payload: "C", setName: "Laukik", bytes: 1n });
-        //     const setResult2 = await target.upsert(data);
-        //     const rangeResult = await target.scoreRangeQuery("Laukik", 1n, 5n);
-
-        //     //Verify
-        //     assert.deepStrictEqual(setResult2.failed.length, 0);
-        //     assert.deepStrictEqual(setResult2.succeeded, data);
-        //     assert.deepStrictEqual(rangeResult.error, undefined);
-        //     assert.deepStrictEqual(rangeResult.data, [data[0], data[1], data[3], data[4]].map(e => { delete e.bytes; return e; }));
-        //     assert.deepStrictEqual(setResult1.failed.length, 0);
-        //     assert.deepStrictEqual(setResult1.succeeded, [data[0], data[1], data[2]]);
-        // });
-
-        // it('should only return data for a given range', async () => {
-        //     //Setup
-        //     const target = run.testTarget();
-        //     const data = new Array<ISortedStringData>();
-        //     data.push({ score: 1n, payload: "A", setName: "Laukik", bytes: 1n });
-        //     data.push({ score: 2n, payload: "B", setName: "Laukik", bytes: 1n });
-        //     data.push({ score: 3n, payload: "C", setName: "Laukik", bytes: 1n });
-        //     //Test
-        //     await target.upsert(data);
-        //     const rangeResult = await target.scoreRangeQuery("Laukik", 1n, 2n);
-
-        //     //Verify
-        //     assert.deepStrictEqual(rangeResult.error, undefined);
-        //     assert.deepStrictEqual(rangeResult.data, [data[0], data[1]].map(e => { delete e.bytes; return e; }));
-        // });
-
-        // it('should be inclusive on range reads', async () => {
-        //     //Setup
-        //     const target = run.testTarget();
-        //     const data = new Array<ISortedStringData>();
-        //     data.push({ score: 1n, payload: "A", setName: "Laukik", bytes: 1n });
-        //     data.push({ score: 2n, payload: "B", setName: "Laukik", bytes: 1n });
-        //     data.push({ score: 3n, payload: "C", setName: "Laukik", bytes: 1n });
-
-        //     //Test
-        //     await target.upsert(data);
-        //     const rangeResult = await target.scoreRangeQuery("Laukik", 2n, 3n);
-
-        //     //Verify
-        //     assert.deepStrictEqual(rangeResult.error, undefined);
-        //     assert.deepStrictEqual(rangeResult.data.length, 2);
-        //     assert.deepStrictEqual(rangeResult.data[0].payload, "B");
-        //     assert.deepStrictEqual(rangeResult.data[1].payload, "C");
-        // });
-
-        // it('should not allow more then score limit upsert via upsert', async () => {
-        //     //Setup
-        //     const target = run.testTarget();
-        //     const data = new Array<ISortedStringData>();
-        //     data.push({ score: -9007199254740993n, payload: "A", setName: "Laukik", bytes: 1n });
-        //     data.push({ score: 9007199254740993n, payload: "B", setName: "Laukik", bytes: 1n });
-        //     data.push({ score: 3n, payload: "C", setName: "Laukik", bytes: 1n });
-
-        //     //Test
-        //     const setResult = await target.upsert(data);
-
-        //     //Verify
-        //     assert.deepStrictEqual(setResult.failed.length, 2);
-        //     assert.deepStrictEqual(setResult.succeeded, [data[2]]);
-        //     assert.deepStrictEqual(setResult.failed[0]?.error?.message, `Score(-9007199254740993) for set named "Laukik" is not within range of -9007199254740992 to 9007199254740992.`);
-        //     assert.deepStrictEqual(setResult.failed[1]?.error?.message, `Score(9007199254740993) for set named "Laukik" is not within range of -9007199254740992 to 9007199254740992.`);
-        // });
-
-        // it('should be able to upsert data for different sorted sets', async () => {
-        //     //Setup
-        //     const target = run.testTarget();
-        //     const data = new Array<ISortedStringData>();
-        //     data.push({ score: 1n, payload: "A", setName: "1", bytes: 1n });
-        //     data.push({ score: 2n, payload: "B", setName: "1", bytes: 1n });
-        //     data.push({ score: 3n, payload: "C", setName: "1", bytes: 1n });
-        //     data.push({ score: 4n, payload: "A", setName: "2", bytes: 1n });
-        //     data.push({ score: 5n, payload: "B", setName: "2", bytes: 1n });
-        //     data.push({ score: 6n, payload: "C", setName: "2", bytes: 1n });
-
-        //     //Test
-        //     const setResult = await target.upsert(data);
-        //     const rangeResult1 = await target.scoreRangeQuery("1", 1n, 3n);
-        //     const rangeResult2 = await target.scoreRangeQuery("2", 1n, 10n);
-
-        //     //Verify
-        //     assert.deepStrictEqual(setResult.failed.length, 0);
-        //     assert.deepStrictEqual(setResult.succeeded, data);
-        //     assert.deepStrictEqual(rangeResult1.data, [data[0], data[1], data[2]].map(e => { delete e.bytes; return e; }));
-        //     assert.deepStrictEqual(rangeResult2.data, [data[3], data[4], data[5]].map(e => { delete e.bytes; return e; }));
-        // });
-
-        // it('should return correct results when queried outside smaller range', async () => {
-        //     //Setup
-        //     const target = run.testTarget();
-        //     const data = new Array<ISortedStringData>();
-        //     data.push({ score: 4n, payload: "A", setName: "Laukik", bytes: 1n });
-        //     data.push({ score: 5n, payload: "B", setName: "Laukik", bytes: 1n });
-        //     data.push({ score: 6n, payload: "C", setName: "Laukik", bytes: 1n });
-
-        //     //Test
-        //     const setResult = await target.upsert(data);
-        //     const rangeResult = await target.scoreRangeQuery("Laukik", 1n, 3n);
-
-        //     //Verify
-        //     assert.deepStrictEqual(setResult.failed.length, 0);
-        //     assert.deepStrictEqual(setResult.succeeded, data);
-        //     assert.deepStrictEqual(rangeResult.data.length, 0);
-        //     assert.deepStrictEqual(rangeResult.error, undefined);
-        // });
-
-        // it('should return correct results when queried outside greater range', async () => {
-        //     //Setup
-        //     const target = run.testTarget();
-        //     const data = new Array<ISortedStringData>();
-        //     data.push({ score: 4n, payload: "A", setName: "Laukik", bytes: 1n });
-        //     data.push({ score: 5n, payload: "B", setName: "Laukik", bytes: 1n });
-        //     data.push({ score: 6n, payload: "C", setName: "Laukik", bytes: 1n });
-
-        //     //Test
-        //     const setResult = await target.upsert(data);
-        //     const rangeResult = await target.scoreRangeQuery("Laukik", 7n, 10n);
-
-        //     //Verify
-        //     assert.deepStrictEqual(setResult.failed.length, 0);
-        //     assert.deepStrictEqual(setResult.succeeded, data);
-        //     assert.deepStrictEqual(rangeResult.data.length, 0);
-        //     assert.deepStrictEqual(rangeResult.error, undefined);
-        // });
-
-        // it('should return correct results when queried partially overlapping smaller range', async () => {
-        //     //Setup
-        //     const target = run.testTarget();
-        //     const data = new Array<ISortedStringData>();
-        //     data.push({ score: 4n, payload: "A", setName: "Laukik", bytes: 1n });
-        //     data.push({ score: 5n, payload: "B", setName: "Laukik", bytes: 1n });
-        //     data.push({ score: 6n, payload: "C", setName: "Laukik", bytes: 1n });
-
-        //     //Test
-        //     const setResult = await target.upsert(data);
-        //     const rangeResult = await target.scoreRangeQuery("Laukik", 2n, 4n);
-
-        //     //Verify
-        //     assert.deepStrictEqual(setResult.failed.length, 0);
-        //     assert.deepStrictEqual(setResult.succeeded, data);
-        //     assert.deepStrictEqual(rangeResult.data, [data[0]].map(e => { delete e.bytes; return e; }));
-        //     assert.deepStrictEqual(rangeResult.error, undefined);
-        // });
-
-        // it('should return correct results when queried partially overlapping greater range', async () => {
-        //     //Setup
-        //     const target = run.testTarget();
-        //     const data = new Array<ISortedStringData>();
-        //     data.push({ score: 4n, payload: "A", setName: "Laukik", bytes: 1n });
-        //     data.push({ score: 5n, payload: "B", setName: "Laukik", bytes: 1n });
-        //     data.push({ score: 6n, payload: "C", setName: "Laukik", bytes: 1n });
-
-        //     //Test
-        //     const setResult = await target.upsert(data);
-        //     const rangeResult = await target.scoreRangeQuery("Laukik", 6n, 10n);
-
-        //     //Verify
-        //     assert.deepStrictEqual(setResult.failed.length, 0);
-        //     assert.deepStrictEqual(setResult.succeeded.length, 3);
-        //     data.splice(0, 2);
-        //     const readData = data.map(e => { delete e.bytes; return e });
-        //     assert.deepStrictEqual(rangeResult.data, readData);
-        //     assert.deepStrictEqual(rangeResult.error, undefined);
-        // });
-
-        // it('should return correct results when queried non existing sorted upsert', async () => {
-        //     //Setup
-        //     const target = run.testTarget();
-
-        //     //Test
-        //     const rangeResult = await target.scoreRangeQuery("Laukik", 6n, 10n);
-
-        //     //Verify
-        //     assert.deepStrictEqual(rangeResult.data.length, 0);
-        //     assert.deepStrictEqual(rangeResult.error, undefined);
-        // });
-
-        // it('should return error when presented with reverse range', async () => {
-        //     //Setup
-        //     const target = run.testTarget();
-
-        //     //Test
-        //     const rangeResult = await target.scoreRangeQuery("Laukik", 10n, 6n);
-
-        //     //Verify
-        //     assert.deepStrictEqual(rangeResult.data.length, 0);
-        //     assert.deepStrictEqual(rangeResult.error?.message, "Invalid range start(10) cannot be greator than end(6).");
-        // });
-
-        // it('should return query data in sequential ascending order', async () => {
-        //     //Setup
-        //     const target = run.testTarget();
-        //     const data = new Array<ISortedStringData>();
-        //     data.push({ score: 309n, payload: "A", setName: "Laukik", bytes: 1n });
-        //     data.push({ score: 4n, payload: "B", setName: "Laukik", bytes: 1n });
-        //     data.push({ score: 100n, payload: "C", setName: "Laukik", bytes: 1n });
-
-        //     //Test
-        //     const setResult = await target.upsert(data);
-        //     const rangeResult = await target.scoreRangeQuery("Laukik", 0n, 500n);
-
-        //     //Verify
-        //     assert.deepStrictEqual(setResult.failed.length, 0);
-        //     assert.deepStrictEqual(setResult.succeeded, data);
-        //     assert.deepStrictEqual(rangeResult.error, undefined);
-        //     assert.deepStrictEqual(rangeResult.data, new Array({ score: 4n, payload: "B", setName: "Laukik" },
-        //         { score: 100n, payload: "C", setName: "Laukik" }, { score: 309n, payload: "A", setName: "Laukik" }));
-        // });
     });
 
     // describe(`"${run.type}" Purge component tests`, () => {

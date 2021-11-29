@@ -72,7 +72,7 @@ export class NDimensionalPartitionedSortedSet {
         returnObject.data = rawData.reduce((acc, rData) => {
             if (rData.status === "fulfilled") {
                 //Reason for reverse is cause we need to invert insertions for same value.
-                rData.value.reverse().forEach(v => sortingHelper.add(acc, v, this.nDimensionCompareFunction(end.map(e => parseInt(e.toString())))));
+                rData.value.reverse().forEach(v => sortingHelper.add(acc, v, this.nDimensionCompareFunction(end.map(e => parseInt((e + 1n).toString())))));
             }
             else {
                 errorString += rData.reason.message;
