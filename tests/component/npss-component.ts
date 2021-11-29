@@ -21,7 +21,7 @@ runs.forEach(function (run) {
             await client.shutdown();
         });
 
-        it('should be able to upsert and get string data', async () => {
+        it('should be able to insert and get string data', async () => {
             //Setup
             const testShard = run.createPSSF();
             const target = new NDimensionalPartitionedSortedSet([10n, 10n, 10n], (details) => testShard);
@@ -40,6 +40,60 @@ runs.forEach(function (run) {
             assert.deepStrictEqual(rangeResult.error, undefined);
             const readData = data.map(e => { delete e.bytes; return e });
             assert.deepStrictEqual(rangeResult.data, readData);
+        });
+
+        it('should be able to insert and get string data in same sequence with same score', async () => {
+            //Setup
+            const testShard = run.createPSSF();
+            const target = new NDimensionalPartitionedSortedSet([10n, 10n, 10n], (details) => testShard);
+            const data = new Array<IDimentionalData>();
+            data.push({ dimensions: [1n, 0n, 0n], payload: "A", bytes: 1n });
+            data.push({ dimensions: [11n, 0n, 0n], payload: "B", bytes: 1n });
+            data.push({ dimensions: [21n, 0n, 0n], payload: "C", bytes: 1n });
+
+
+            //Test
+            const setResult1 = await target.write(data);
+            data.push({ dimensions: [21n, 0n, 0n], payload: "D", bytes: 1n });
+            data.push({ dimensions: [21n, 0n, 0n], payload: "E", bytes: 1n });
+            const setResult2 = await target.write(data);
+            const rangeResult = await target.rangeRead([0n, 0n, 0n], [100n, 100n, 100n]);
+
+            //Verify
+            assert.deepStrictEqual(setResult1.failed.length, 0);
+            assert.deepStrictEqual(setResult1.succeeded, [data[0], data[1], data[2]]);
+            assert.deepStrictEqual(setResult2.failed.length, 0);
+            assert.deepStrictEqual(setResult2.succeeded, data);
+            assert.deepStrictEqual(rangeResult.error, undefined);
+            const readData = data.map(e => { delete e.bytes; return e });
+            assert.deepStrictEqual(rangeResult.data, readData);
+        });
+
+        it('should be able to update and get string data in same sequence with same score for the same partition', async () => {
+            //Setup
+            const testShard = run.createPSSF();
+            const target = new NDimensionalPartitionedSortedSet([10n, 10n, 10n], (details) => testShard);
+            const data = new Array<IDimentionalData>();
+            data.push({ dimensions: [1n, 0n, 0n], payload: "A", bytes: 1n });
+            data.push({ dimensions: [11n, 0n, 0n], payload: "B", bytes: 1n });
+            data.push({ dimensions: [21n, 0n, 0n], payload: "C", bytes: 1n });
+
+
+            //Test
+            const setResult1 = await target.write(data);
+            data.push({ dimensions: [22n, 0n, 0n], payload: "C", bytes: 1n });
+            data.push({ dimensions: [21n, 0n, 0n], payload: "E", bytes: 1n });
+            const setResult2 = await target.write(data);
+            const rangeResult = await target.rangeRead([0n, 0n, 0n], [100n, 100n, 100n]);
+
+            //Verify
+            assert.deepStrictEqual(setResult1.failed.length, 0);
+            assert.deepStrictEqual(setResult1.succeeded, [data[0], data[1], data[2]]);
+            assert.deepStrictEqual(setResult2.failed.length, 0);
+            assert.deepStrictEqual(setResult2.succeeded, data);
+            assert.deepStrictEqual(rangeResult.error, undefined);
+            const readData = data.map(e => { delete e.bytes; return e });
+            assert.deepStrictEqual(rangeResult.data, [readData[0], readData[1], readData[4], readData[3]]);
         });
 
         // it('should not let setname end with purge key', async () => {

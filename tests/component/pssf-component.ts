@@ -85,6 +85,29 @@ runs.forEach(function (run) {
             assert.deepStrictEqual(setResult1.succeeded, [data[0], data[1], data[2]]);
         });
 
+        it('should be able to upsert data with same score and get all data in insertion sequence', async () => {
+            //Setup
+            const target = run.testTarget();
+            const data = new Array<ISortedStringData>();
+            data.push({ score: 1n, payload: "A", setName: "Laukik", bytes: 1n });
+            data.push({ score: 2n, payload: "B", setName: "Laukik", bytes: 1n });
+            data.push({ score: 3n, payload: "C", setName: "Laukik", bytes: 1n });
+
+            //Test
+            const setResult1 = await target.upsert(data);
+            data.push({ score: 3n, payload: "D", setName: "Laukik", bytes: 1n });
+            const setResult2 = await target.upsert(data);
+            const rangeResult = await target.scoreRangeQuery("Laukik", 1n, 5n);
+
+            //Verify
+            assert.deepStrictEqual(setResult1.failed.length, 0);
+            assert.deepStrictEqual(setResult1.succeeded, [data[0], data[1], data[2]]);
+            assert.deepStrictEqual(setResult2.failed.length, 0);
+            assert.deepStrictEqual(setResult2.succeeded, data);
+            assert.deepStrictEqual(rangeResult.error, undefined);
+            assert.deepStrictEqual(rangeResult.data, data.map(e => { delete e.bytes; return e; }));
+        });
+
         it('should only return data for a given range', async () => {
             //Setup
             const target = run.testTarget();
@@ -120,7 +143,7 @@ runs.forEach(function (run) {
             assert.deepStrictEqual(rangeResult.data[1].payload, "C");
         });
 
-        it('should not allow more then score limit upsert via upsert', async () => {
+        it('should not allow score more then limit in upsert', async () => {
             //Setup
             const target = run.testTarget();
             const data = new Array<ISortedStringData>();
