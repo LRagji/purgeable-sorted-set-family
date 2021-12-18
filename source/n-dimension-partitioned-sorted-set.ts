@@ -7,19 +7,29 @@ export class NDimensionalPartitionedSortedSet {
     private partitionShape: bigint[];
     private partitionNameSeperator: string;
     private partitionShapeInteger: number[];
-    private shardResolver: (details: IPatitionDetails) => IPurgeableSortedSetFamily<ISortedStringData>;
+    private shardResolver: (details: IPatitionDetails) => Promise<IPurgeableSortedSetFamily<ISortedStringData>>;
     private settingsHash: string;
     private nDimensionCompareFunction = (end: number[]) => ((lhs: IDimentionalData, rhs: IDimentionalData) => <1 | 0 | -1>Math.min(Math.max(parseInt((this.dimensionToLinearIndex(lhs.dimensions, end) - this.dimensionToLinearIndex(rhs.dimensions, end)).toString()), -1), 1));
 
-    constructor(partitionShape: bigint[], shardResolver: (details: IPatitionDetails) => IPurgeableSortedSetFamily<ISortedStringData>, partitionNameSeperator = '-') {
+    constructor(partitionShape: bigint[], shardResolver: (details: IPatitionDetails) => Promise<IPurgeableSortedSetFamily<ISortedStringData>>, partitionNameSeperator = '-') {
         if (partitionShape.length === 0) {
             throw new Error(`Invalid parameter "partitionShape" cannot be of length zero.`);
         }
         this.partitionShape = partitionShape;
         this.partitionShapeInteger = partitionShape.map(e => parseInt(e.toString()));
         this.partitionNameSeperator = partitionNameSeperator;
-        this.shardResolver = shardResolver;
+        this.shardResolver = async (details: IPatitionDetails) => {
+            const shard = await shardResolver(details);
+            if (shard.purgeMarker() === partitionNameSeperator || shard.purgeMarker().replace(this.partitionNameSeperator, "") !== shard.purgeMarker()) {
+                throw new Error(`Shard has a "purgeKeyAppend"(${shard.purgeMarker()}) which contains "partitionNameSeperator"(${this.partitionNameSeperator}) which is not allowed.`);
+            }
+            return shard;
+        };
         this.settingsHash = this.objectHash({ "partitionNameSeperator": partitionNameSeperator, "partitionShape": partitionShape.join(partitionNameSeperator) });
+    }
+
+    public hash(): string {
+        return this.settingsHash
     }
 
     async write(data: IDimentionalData[]): Promise<IBulkResponse<IDimentionalData[], IError<IDimentionalData>[]>> {
@@ -87,6 +97,12 @@ export class NDimensionalPartitionedSortedSet {
         return returnObject;
     }
 
+    parseTokenizedDimentionalData(tokenizedData: Map<string, ISortedStringData[]>): Map<string, IDimentionalData[]> {
+        const returnMap = new Map<string, IDimentionalData[]>();
+        tokenizedData.forEach((data, token) => returnMap.set(token, this.parseDimensionalData(this.partitionNameDeconstructor(token), data)));
+        return returnMap;
+    }
+
     private async readParitionRange(partitionStart: bigint[], start: bigint[], end: bigint[]): Promise<IDimentionalData[]> {
         const relativePositionMapResolver = (e: bigint, idx: number) => e - partitionStart[idx];
         const localStart = this.dimensionToLinearIndex(start.map(relativePositionMapResolver));
@@ -97,8 +113,27 @@ export class NDimensionalPartitionedSortedSet {
         if (result.error != undefined) {
             throw result.error;
         }
-        return result.data.map(e => {
-            const calculatedDimensions = this.linearIndexToDimension(e.score).map((e, idx) => partitionStart[idx] + e);
+        return this.parseDimensionalData(partitionStart, result.data);
+    }
+
+    private partitionNameBuilder(partitionStart: bigint[]): string {
+        return `${this.settingsHash}${this.partitionNameSeperator}${partitionStart.join(this.partitionNameSeperator)}`;
+    }
+
+    private partitionNameDeconstructor(partitionName: string): bigint[] {
+        const decomposed = partitionName.split(this.partitionNameSeperator);
+        if (decomposed.length < (this.partitionShapeInteger.length + 1)) {
+            throw new Error(`Invalid partition name: ${partitionName}, expecting ${this.partitionShapeInteger.length + 1} dimensions seperated by "${this.partitionNameSeperator}".`)
+        }
+        if (decomposed[0] !== this.settingsHash) {
+            throw new Error(`Invalid version, settings must have changed expected:"${this.settingsHash}" but was "${decomposed[0]}"`);
+        }
+        return decomposed.splice(1, this.partitionShapeInteger.length).map(e => BigInt(parseInt(e, 10)));
+    }
+
+    private parseDimensionalData(absolutePartitionStart: bigint[], sortedData: ISortedStringData[]): IDimentionalData[] {
+        return sortedData.map(e => {
+            const calculatedDimensions = this.linearIndexToDimension(e.score).map((e, idx) => absolutePartitionStart[idx] + e);
             if (e.bytes == undefined) {
                 return {
                     "dimensions": calculatedDimensions,
@@ -113,10 +148,6 @@ export class NDimensionalPartitionedSortedSet {
                 };
             }
         });
-    }
-
-    private partitionNameBuilder(partitionStart: bigint[]): string {
-        return `${this.settingsHash}${this.partitionNameSeperator}${partitionStart.join(this.partitionNameSeperator)}`;
     }
 
     private objectHash(settings: object): string {

@@ -23,6 +23,9 @@ export class LocalPSSF implements IPurgeableSortedSetFamily<ISortedStringData> {
     private purgeKeyAppend: string;
 
     constructor(purgeKeyAppend = "purged") {
+        if (purgeKeyAppend === "" || !Number.isNaN(parseInt(purgeKeyAppend, 10))) {
+            throw new Error(`Parameter "purgeKeyAppend" cannot be empty or start with positive or negative numbers.`);
+        }
         this.purgeKeyAppend = purgeKeyAppend;
     }
 
@@ -227,6 +230,10 @@ export class LocalPSSF implements IPurgeableSortedSetFamily<ISortedStringData> {
             }
         });
         return Promise.resolve(returnObject);
+    }
+
+    purgeMarker(): string {
+        return this.purgeKeyAppend;
     }
 
     constructToken(sortedSetName: string): string {

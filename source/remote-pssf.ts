@@ -30,12 +30,14 @@ export class RemotePSSF implements IPurgeableSortedSetFamily<ISortedStringData> 
 
 
     constructor(redisClientResolver: (operation: Operation) => Promise<IRedisClient>,
-        purgeKeyAppend: string = "-Purged", setnamesToTokensKeyAppend = "SNTS", tokenToSetName = "TSN",
+        purgeKeyAppend: string = "Purged", setnamesToTokensKeyAppend = "SNTS", tokenToSetName = "TSN",
         pendingSetKey: string = "Pending",
         activityKey: string = "Activity", countKey: string = "Stats", bytesKey: string = "Bytes") {
 
         //TODO Reimplement keys validations
-        //purgeKeyAppend cannot be empty string or it will not able to distinguish between normal set and purged set as names will remain same.
+        if (purgeKeyAppend === "" || !Number.isNaN(parseInt(purgeKeyAppend, 10))) {
+            throw new Error(`Parameter "purgeKeyAppend" cannot be empty or start with positive or negative numbers.`);
+        }
 
         if (activityKey.endsWith(purgeKeyAppend) || countKey.endsWith(purgeKeyAppend) || bytesKey.endsWith(purgeKeyAppend) || tokenToSetName.endsWith(purgeKeyAppend) || setnamesToTokensKeyAppend.endsWith(purgeKeyAppend) || pendingSetKey.endsWith(purgeKeyAppend)) {
             throw new Error(`Reserved keys "${activityKey},${countKey},${bytesKey},${tokenToSetName},${setnamesToTokensKeyAppend}" cannot end with "purgeKeyAppend"(${purgeKeyAppend}).`);
@@ -206,6 +208,10 @@ export class RemotePSSF implements IPurgeableSortedSetFamily<ISortedStringData> 
             await client.release();
         }
         return returnObject;
+    }
+
+    purgeMarker(): string {
+        return this.purgeKeyAppend;
     }
 }
 
