@@ -245,7 +245,7 @@ class Absolute {
             const existingRange = ranges.get(partitionName) || [];
             if (existingRange.length === 0) {
                 existingRange.push(counter);
-                const endVector = counter.map((e, idx) => this.frameEnd(e, stride[idx]));
+                const endVector = counter.map((e, idx) => this.min(this.frameEnd(e, stride[idx]), end[idx]));
                 existingRange.push(endVector);
             }
             else {
